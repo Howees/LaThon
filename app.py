@@ -16,7 +16,7 @@ from customtkinter import CTkInputDialog
 
 # --- Módulos da Aplicação ---
 from compiler import find_latex_compiler, CompilerThread
-from ui_widgets import CustomDialog, TableInputDialog
+from ui_widgets import CustomDialog, TableInputDialog, LayoutConfigDialog, EditorConfigDialog
 from preview_handler import PreviewHandler, PYMUPDF_AVAILABLE
 from find_replace import FindReplaceHandler
 from file_manager import FileManager
@@ -24,13 +24,13 @@ from spell_checker import SpellCheckHandler
 from autocomplete_handler import AutocompleteHandler
 
 RECENTS_FILE = "recents.json"
+LAYOUT_FILE = "layout_config.json"
 
 
 class WelcomeScreen(ctk.CTkFrame):
     def __init__(self, master, app_instance):
         super().__init__(master, fg_color="transparent")
         self.app = app_instance
-        self.pack(fill="both", expand=True)
 
         self.center_container = ctk.CTkFrame(self, fg_color="transparent")
         self.center_container.place(relx=0.5, rely=0.5, anchor="center")
@@ -45,7 +45,7 @@ class WelcomeScreen(ctk.CTkFrame):
         ctk.CTkLabel(logo_frame, text="La", font=("Segoe UI", 60, "bold"), text_color="#2ea043").pack(side="left")
         ctk.CTkLabel(logo_frame, text="Thon", font=("Segoe UI", 60, "bold"), text_color="#41a5ee").pack(side="left")
 
-        # 2. BOTÕES DE AÇÃO (Grandes)
+        # 2. BOTÕES DE AÇÃO
         btn_new = ctk.CTkButton(self.center_container, text="✨  Criar Novo Projeto",
                                 command=self._show_create_options,
                                 width=300, height=45, font=("Segoe UI", 14, "bold"),
@@ -60,35 +60,34 @@ class WelcomeScreen(ctk.CTkFrame):
                                  hover_color=("gray75", "gray25"), corner_radius=8)
         btn_open.pack(pady=8)
 
-        # 3. ÁREA DE RECENTES (Compacta e Sucinta)
+        # 3. ÁREA DE RECENTES COMPACTA
         recents = self.app._load_recents()
         if recents:
-            # Separador visual
-            ctk.CTkFrame(self.center_container, height=1, width=200, fg_color=("gray70", "gray30")).pack(pady=(25, 10))
+            # Separador visual discreto
+            ctk.CTkFrame(self.center_container, height=1, width=150, fg_color=("gray70", "gray30")).pack(pady=(25, 10))
 
             ctk.CTkLabel(self.center_container, text="Recentes", text_color="gray50",
                          font=("Segoe UI", 11, "bold")).pack(pady=(0, 5))
 
-            # Scroll pequeno (max 3 itens visiveis aprox)
-            scroll_recents = ctk.CTkScrollableFrame(self.center_container, width=320, height=120,
-                                                    fg_color="transparent")
-            scroll_recents.pack()
+            # Frame Simples (Não Scrollable) para ficar compacto
+            recents_frame = ctk.CTkFrame(self.center_container, fg_color="transparent")
+            recents_frame.pack()
 
-            for path_str in recents:
+            # Mostra apenas os 3 primeiros
+            for path_str in recents[:3]:
                 p = Path(path_str)
                 if p.exists():
-                    # Botão estilo "Link"
-                    btn = ctk.CTkButton(scroll_recents, text=f"📄 {p.name}", anchor="w",
-                                        font=("Segoe UI", 12), height=30,
+                    btn = ctk.CTkButton(recents_frame, text=f"📄 {p.name}", anchor="center",
+                                        font=("Segoe UI", 12), height=28, width=200,
                                         fg_color="transparent",
-                                        text_color=("gray20", "gray80"),
-                                        hover_color=("gray85", "gray25"),
+                                        text_color=("gray30", "gray80"),
+                                        hover_color=("gray90", "gray25"),
                                         command=lambda x=p: self.app.load_project_folder(x))
-                    btn.pack(fill="x", pady=1)
+                    btn.pack(pady=1)
 
-        # Rodapé
-        ctk.CTkLabel(self.center_container, text="v4.9 - Final Polish", text_color="gray40",
-                     font=("Segoe UI", 10)).pack(pady=(20, 0))
+        # Rodapé Minimalista
+        ctk.CTkLabel(self.center_container, text="v5.5", text_color="gray40",
+                     font=("Segoe UI", 10)).pack(pady=(30, 0))
 
     def _show_create_options(self):
         for widget in self.center_container.winfo_children(): widget.destroy()
@@ -128,6 +127,12 @@ class MiniOverleaf(ctk.CTk):
         self.download_notification_window = None
         self.spellcheck_timer = None
         self.highlight_chapters_active = False
+
+        # --- CARREGA CONFIGURAÇÕES ---
+        self.layout_pcts = {"files": 0.20, "pdf": 0.40}
+        self.font_size = 12
+        self.font_family = "Consolas"
+        self._load_layout_config()
 
         # Inicializa como None para segurança
         self.preview_handler = None
@@ -197,8 +202,12 @@ class MiniOverleaf(ctk.CTk):
         self.menu_export.add_command(label="📄 PDF (Ctrl+E)", command=self.export_pdf)
         self.menu_export.add_command(label="📦 ZIP (Ctrl+Shift+E)", command=self._export_project_as_zip)
 
-        self.btn_config = ctk.CTkButton(top_inner, text="⚙️ Config", command=self._open_spell_settings, **menu_btn_conf)
+        self.btn_config = ctk.CTkButton(top_inner, text="⚙️ Config", command=self._show_config_menu, **menu_btn_conf)
         self.btn_config.pack(side="left", padx=1)
+        self.menu_config = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
+        self.menu_config.add_command(label="🖥️ Configurar Tela", command=self._open_layout_config)
+        self.menu_config.add_command(label="📝 Configurar Editor", command=self._open_editor_config)
+        self.menu_config.add_command(label="abc Configurar Corretor", command=self._open_spell_config)
 
         self.compile_button = ctk.CTkButton(top_inner, text="▶ Compile (Ctrl+S)", width=130, height=24,
                                             command=self.compile_action, fg_color="#238636", hover_color="#2ea043",
@@ -206,18 +215,18 @@ class MiniOverleaf(ctk.CTk):
         self.compile_button.pack(side="right", padx=10)
 
         # =========================================================================
-        # LAYOUT COM LIMITES DE REDIMENSIONAMENTO
+        # LAYOUT
         # =========================================================================
 
         is_dark = ctk.get_appearance_mode() == "Dark"
         bg_color = "#2b2b2b" if is_dark else "#e6e6e6"
 
-        # Divisor Principal (Arquivos | Editor+PDF)
-        self.paned_main = tk.PanedWindow(self.main_frame, orient="horizontal", bd=0, sashwidth=4, bg=bg_color)
+        self.paned_main = tk.PanedWindow(self.main_frame, orient="horizontal", bd=0,
+                                         sashwidth=0, sashpad=0, showhandle=False, bg=bg_color)
         self.paned_main.grid(row=1, column=0, sticky="nsew")
 
-        # Divisor Secundário (Editor | PDF)
-        self.paned_editor_pdf = tk.PanedWindow(self.paned_main, orient="horizontal", bd=0, sashwidth=4, bg=bg_color)
+        self.paned_editor_pdf = tk.PanedWindow(self.paned_main, orient="horizontal", bd=0,
+                                               sashwidth=0, sashpad=0, showhandle=False, bg=bg_color)
 
         # --- PAINEL ESQUERDO ---
         self.left_panel = ctk.CTkFrame(self.paned_main, fg_color=("gray95", "#252526"), corner_radius=0)
@@ -248,13 +257,15 @@ class MiniOverleaf(ctk.CTk):
         self.editor_area_frame.grid_rowconfigure(0, weight=1)
         self.editor_area_frame.grid_columnconfigure(1, weight=1)
 
-        self.line_number_bar = ctk.CTkTextbox(self.editor_area_frame, width=45, font=("Consolas", 12), state="disabled",
+        initial_font = (self.font_family, self.font_size)
+
+        self.line_number_bar = ctk.CTkTextbox(self.editor_area_frame, width=45, font=initial_font, state="disabled",
                                               activate_scrollbars=False, fg_color=("gray92", "#252526"),
                                               text_color="gray50")
         self.line_number_bar.grid(row=0, column=0, sticky="nsw")
         self.line_number_bar._textbox.configure(spacing1=0, spacing2=0, spacing3=2)
 
-        self.editor = ctk.CTkTextbox(self.editor_area_frame, font=("Consolas", 12), wrap="word", undo=True,
+        self.editor = ctk.CTkTextbox(self.editor_area_frame, font=initial_font, wrap="word", undo=True,
                                      fg_color=("white", "#1a1a1a"))
         self.editor.grid(row=0, column=1, sticky="nsew")
         self.editor._textbox.configure(spacing1=0, spacing2=0, spacing3=2)
@@ -326,17 +337,13 @@ class MiniOverleaf(ctk.CTk):
         self.preview_label.pack(anchor="n", fill="x", padx=0, pady=0)
 
         # --- APLICAÇÃO DAS TRAVAS (LIMITES) ---
-
-        # Painel Esquerdo (Arquivos): Mínimo 200px
-        self.paned_main.add(self.left_panel, minsize=200)
-
+        self.paned_main.add(self.left_panel)
         self.paned_main.add(self.paned_editor_pdf)
+        self.paned_editor_pdf.add(self.center_frame)
+        self.paned_editor_pdf.add(self.right_frame)
 
-        # Painel Central (Editor): Mínimo 450px (Protege o Find/Replace)
-        self.paned_editor_pdf.add(self.center_frame, minsize=450)
-
-        # Painel Direito (PDF): Mínimo 300px
-        self.paned_editor_pdf.add(self.right_frame, minsize=300)
+        # Aplicar layout inicial após a janela ser criada e renderizada
+        self.after(500, self._apply_layout_settings)
 
         # --- Handlers ---
         self.preview_handler = PreviewHandler(self)
@@ -370,8 +377,87 @@ class MiniOverleaf(ctk.CTk):
         self.find_frame.grid_forget()
         self.process_queue()
         self._style_treeview()
+        self._apply_editor_font()
 
         if not self.latex_compiler: messagebox.showerror("Aviso", "Compilador LaTeX não encontrado.")
+
+    # --- LÓGICA DE CONFIGURAÇÃO DO LAYOUT ---
+    def _load_layout_config(self):
+        try:
+            if Path(LAYOUT_FILE).exists():
+                with open(LAYOUT_FILE, 'r') as f:
+                    data = json.load(f)
+                    self.layout_pcts = data.get("layout", self.layout_pcts)
+                    self.font_size = data.get("font_size", 12)
+                    self.font_family = data.get("font_family", "Consolas")
+        except:
+            pass
+
+    def _save_layout_config(self):
+        try:
+            data = {
+                "layout": self.layout_pcts,
+                "font_size": self.font_size,
+                "font_family": self.font_family
+            }
+            with open(LAYOUT_FILE, 'w') as f:
+                json.dump(data, f)
+        except:
+            pass
+
+    def _apply_layout_settings(self):
+        total_width = self.winfo_width()
+        if total_width <= 1: return
+
+        files_px = int(total_width * self.layout_pcts["files"])
+        try:
+            self.paned_main.sash_place(0, files_px, 0)
+        except:
+            pass
+
+        remaining_width = total_width - files_px
+        pdf_px = int(total_width * self.layout_pcts["pdf"])
+        sash2_pos = remaining_width - pdf_px
+        try:
+            self.paned_editor_pdf.sash_place(0, max(0, sash2_pos), 0)
+        except:
+            pass
+
+    def _open_layout_config(self):
+        d = LayoutConfigDialog(self.layout_pcts["files"], self.layout_pcts["pdf"])
+        res = d.get_layout()
+        if res:
+            self.layout_pcts["files"] = res[0]
+            self.layout_pcts["pdf"] = res[1]
+            self._save_layout_config()
+            self._apply_layout_settings()
+
+    def _open_editor_config(self):
+        d = EditorConfigDialog(self.font_size, self.font_family)
+        res = d.get_settings()
+        if res:
+            new_size = res.get("font_size")
+            new_family = res.get("font_family")
+            if new_size != self.font_size or new_family != self.font_family:
+                self.font_size = new_size
+                self.font_family = new_family
+                self._apply_editor_font()
+                self._save_layout_config()
+
+    def _open_spell_config(self):
+        self.spell_checker.open_settings_window()
+
+    def _apply_editor_font(self):
+        font = (self.font_family, self.font_size)
+        self.editor.configure(font=font)
+        try:
+            self.line_number_bar.configure(font=font)
+        except:
+            pass
+        self._update_line_numbers()
+
+    def _show_config_menu(self):
+        self._popup_menu(self.menu_config, self.btn_config)
 
     def _load_recents(self):
         try:
@@ -394,7 +480,6 @@ class MiniOverleaf(ctk.CTk):
         except:
             pass
 
-    # --- CORREÇÃO DO CRASH ---
     def _on_editor_scroll_proxy(self, *args):
         if self._editor_original_scroll_command:
             try:
@@ -402,7 +487,6 @@ class MiniOverleaf(ctk.CTk):
             except tk.TclError:
                 pass
         self._sync_line_numbers_scroll(args[0])
-        # Verifica se o handler já foi iniciado
         if hasattr(self, 'preview_handler') and self.preview_handler:
             self.preview_handler.sync_scroll_from_editor(args[0])
 
@@ -463,7 +547,8 @@ class MiniOverleaf(ctk.CTk):
         for ext in [".aux", ".log", ".out", ".toc", ".bbl", ".blg", ".synctex.gz", ".fls", ".fdb_latexmk"]:
             for f in self.project_dir.rglob(f"*{ext}"):
                 try:
-                    f.unlink(); count += 1
+                    f.unlink();
+                    count += 1
                 except:
                     pass
         self.log_line(f"Limpeza: {count} arquivos removidos.")
@@ -499,9 +584,6 @@ class MiniOverleaf(ctk.CTk):
 
     def _show_export_menu(self):
         self._popup_menu(self.menu_export, self.btn_export)
-
-    def _show_config_menu(self):
-        self._popup_menu(self.menu_config, self.btn_config)
 
     def _popup_menu(self, menu, btn):
         try:
@@ -554,6 +636,7 @@ class MiniOverleaf(ctk.CTk):
         self._open_file(main_file)
         self.title(f"LaThon Editor - {self.project_dir.name}")
         self.compile_action()
+        self.after(200, self._apply_layout_settings)
 
     def _close_project(self):
         if self.active_file: self._save_active_file()
@@ -575,7 +658,6 @@ class MiniOverleaf(ctk.CTk):
         self.geometry("1200x800")
         self.main_frame.grid_forget()
         self.welcome_screen.grid(row=0, column=0, sticky="nsew")
-        # Força recriação do menu para atualizar recentes
         self.welcome_screen._show_main_menu()
 
     def _save_active_file(self):
@@ -662,7 +744,8 @@ class MiniOverleaf(ctk.CTk):
                                             filetypes=[("PDF", "*.pdf")])
         if dest:
             try:
-                shutil.copy2(str(pdf_path), dest); messagebox.showinfo("Sucesso", "PDF Exportado.")
+                shutil.copy2(str(pdf_path), dest);
+                messagebox.showinfo("Sucesso", "PDF Exportado.")
             except Exception as e:
                 messagebox.showerror("Erro", str(e))
 
@@ -792,16 +875,6 @@ class MiniOverleaf(ctk.CTk):
 
     def _sync_line_numbers_scroll(self, first_fraction):
         self.line_number_bar._textbox.yview_moveto(first_fraction)
-
-    def _on_editor_scroll_proxy(self, *args):
-        if self._editor_original_scroll_command:
-            try:
-                self.tk.call(self._editor_original_scroll_command, *args)
-            except tk.TclError:
-                pass
-        self._sync_line_numbers_scroll(args[0])
-        if hasattr(self, 'preview_handler') and self.preview_handler:
-            self.preview_handler.sync_scroll_from_editor(args[0])
 
     def _on_text_changed(self, event=None):
         self._update_line_numbers()

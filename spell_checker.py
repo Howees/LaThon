@@ -71,6 +71,11 @@ class SpellCheckHandler:
             except:
                 pass
 
+    # --- FUNÇÃO QUE FALTAVA (CORREÇÃO DO ERRO) ---
+    def clear_state(self):
+        """Limpa palavras ignoradas apenas nesta sessão."""
+        self.ignored_in_session.clear()
+
     def apply_spell_check(self):
         self.editor._textbox.tag_remove("misspell", "1.0", "end")
         if not self.spell_checkers or not self.app.active_file: return
