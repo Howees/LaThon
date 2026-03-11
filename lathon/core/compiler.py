@@ -141,10 +141,6 @@ class CompilerThread(Thread):
                     download_message_sent = True
                     continue
 
-                # --- TUDO O RESTO É DESCARTADO ---
-                # Isso elimina: "PDF inclusion", "LaTeX Warning", "Underfull hbox", etc.
-                # O resultado é um log super limpo e rápido.
-
             p.stdout.close()
             p.wait()
 
