@@ -11,6 +11,20 @@ from PIL import Image, ImageTk
 from lathon.ui.widgets.modern_menu import ModernMenu
 from lathon.ui.widgets.fixed_input import FixedInputDialog
 
+import sys
+
+
+def resource_path(relative_path):
+    """ Encontra o caminho dos arquivos dentro do EXE ou em modo Dev """
+    try:
+        # O PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    # Forçamos a conversão para str para eliminar o aviso do editor
+    return str(os.path.join(base_path, relative_path))
+
 IGNORED_EXTENSIONS = {".aux", ".log", ".out", ".toc", ".lof", ".lot", ".bbl", ".blg", ".bak", ".nav", ".snm", ".vrb",
                       ".gz", ".synctex.gz", ".fls", ".fdb_latexmk", ".xml", ".run.xml", ".msc", ".glo", ".idx", ".ist",
                       ".ilg", ".dvi", ".bcf", ".spl"}
@@ -83,7 +97,7 @@ class FilePanel(ctk.CTkFrame):
         }
         size = (18, 18)
         for name, data in ICON_MAP.items():
-            icon_path = Path(data['file'])
+            icon_path = Path(resource_path(data['file']))
             icon_attr = f"{name}_icon"
             try:
                 pil_img = Image.open(icon_path).resize(size,

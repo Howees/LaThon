@@ -40,6 +40,7 @@ from lathon.features.assistants.options_manager import OptionsManager
 class MiniOverleaf(ctk.CTk):
     def __init__(self):
         super().__init__()
+
         self.title("LaThon LaTeX Editor")
         self.geometry("1200x800")
 
@@ -74,6 +75,7 @@ class MiniOverleaf(ctk.CTk):
 
     def _build_ui(self):
         is_dark = ctk.get_appearance_mode() == "Dark"
+
         self.main_frame = ctk.CTkFrame(self, fg_color="#2b2b2b" if is_dark else "#e6e6e6", corner_radius=0)
         self.main_frame.grid_rowconfigure(1, weight=1)
 
@@ -209,6 +211,15 @@ class MiniOverleaf(ctk.CTk):
                                             font=("Segoe UI", 12, "bold"))
         self.compile_button.pack(side="right", padx=10)
 
+        # Botão de Informações (Sobre) - Posicionado ao canto direito
+        self.info_button = ctk.CTkButton(top_inner, text="?", width=26, height=24,
+                                         fg_color="transparent", border_width=1,
+                                         border_color=("gray70", "#454545"),
+                                         text_color=("gray10", "gray90"),
+                                         hover_color=("gray80", "#3a3d41"),
+                                         command=self._show_about_dialog)
+        self.info_button.pack(side="right", padx=(0, 5))
+
         # ==========================================
         # 2. CONSTRUÇÃO DOS COMPONENTES (PAINÉIS)
         # ==========================================
@@ -268,6 +279,18 @@ class MiniOverleaf(ctk.CTk):
         self.autocomplete_handler = AutocompleteHandler(self, self.editor)
         self.spell_checker = SpellCheckHandler(self, self.editor)
         self.context_menu_manager = ContextMenuManager(self, self.editor, self.spell_checker)
+
+    def _show_about_dialog(self):
+        about_text = (
+            "Lathon LaTeX Editor\n"
+            "Versão 1.0.1\n"
+            "Compilador Latex MiKTeX Portable\n"
+            "Desenvolvido por: Murilo Campos\n\n"
+            
+            "Em caso de bugs ou sujestões, entre em contato...\n"
+            "Fique a vontade e aproveite o Lathon!!!"
+        )
+        messagebox.showinfo("Sobre o Lathon", about_text)
 
     def _toggle_chapter_shortcut(self, event=None):
         new_val = not self.var_chap.get()

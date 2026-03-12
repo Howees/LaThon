@@ -10,9 +10,15 @@ class ConfigManager:
 
     def __init__(self, base_dir="."):
         self.base_dir = Path(base_dir)
-        self.config_file = self.base_dir / "config.json"
+        # 1. Definimos a pasta de configuração
+        self.config_dir = self.base_dir / "config"
+        self.config_file = self.config_dir / "config.json"
 
-        # Cria o arquivo com as configurações padrão na primeira vez que o app abre
+        # 2. Criamos a pasta caso ela não exista (parents=True evita erros)
+        if not self.config_dir.exists():
+            self.config_dir.mkdir(parents=True, exist_ok=True)
+
+        # 3. Cria o arquivo padrão se ele não existir
         if not self.config_file.exists():
             self._save_all(self._get_default_structure())
 

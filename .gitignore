@@ -1,19 +1,35 @@
 # 1. O COMANDO MESTRE: Ignorar TUDO por padrão
 *
-# 2. Exceção: Não ignorar pastas (para o git poder entrar nelas e procurar os .py)
+
+# 2. EXCEÇÕES: O que DEVE ir para o Git
 !*/
-# 3. Exceção: Não ignorar arquivos Python (.py) onde quer que estejam
 !*.py
-# 4. Exceção: Não ignorar a pasta icones e tudo que tem dentro dela
+!*.spec
+!*.bat
+!requirements.txt
+!ReadMe.txt
+!.gitignore
+
+# 3. EXCEÇÃO DE PASTAS DE ATIVOS
 !icones/
 !icones/**
-# 5. Exceção: Não ignorar o próprio arquivo .gitignore (bom para manter as regras salvas)
-!ReadMe
-!.gitignore
-# 6. Garantia extra: Bloquear pastas específicas de sistema/IDE (caso a regra 2 tenha liberado)
+
+# 4. BLOQUEIOS ESPECÍFICOS (Garantia de limpeza)
+# Ignorar pastas de sistema e IDE
 .idea/
 __pycache__/
 venv/
+.vscode/
+
+# Ignorar pastas de compilação e saída (Build)
+build/
+dist/
+bin/
+release/
+
+# Ignorar arquivos de configuração e dados locais
+config/
 miktex/
 recents.json
 spell_config.json
+*.log
