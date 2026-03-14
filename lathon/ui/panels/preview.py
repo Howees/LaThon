@@ -4,7 +4,6 @@ import customtkinter as ctk
 try:
     import fitz  # PyMuPDF
     from PIL import Image
-
     PYMUPDF_AVAILABLE = True
 except ImportError:
     PYMUPDF_AVAILABLE = False
@@ -44,8 +43,7 @@ class PreviewPanel(ctk.CTkFrame):
         try:
             pil_image = Image.open(image_path)
             self._display_image_centered(pil_image, self.app.image_viewer_container, self.app.image_viewer_label)
-        except:
-            pass
+        except: pass
 
     def show_pdf_in_editor_panel(self, pdf_path: Path):
         if not PYMUPDF_AVAILABLE: return
@@ -57,8 +55,7 @@ class PreviewPanel(ctk.CTkFrame):
             doc.close()
             pil_image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             self._display_image_centered(pil_image, self.app.image_viewer_container, self.app.image_viewer_label)
-        except:
-            pass
+        except: pass
 
     def _display_image_centered(self, pil_image, container, label):
         container.update_idletasks()
@@ -70,7 +67,8 @@ class PreviewPanel(ctk.CTkFrame):
 
     def show_pdf_preview(self, pdf_path: Path):
         if not PYMUPDF_AVAILABLE:
-            self.preview_label.configure(image=None, text="Preview indisponível.")
+            empty_img = ctk.CTkImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), size=(1, 1))
+            self.preview_label.configure(image=empty_img, text="Preview indisponível.")
             return
 
         self.current_pdf_path = pdf_path
@@ -101,6 +99,16 @@ class PreviewPanel(ctk.CTkFrame):
             self._apply_resize()
         except Exception as e:
             self.app.log_line(f"Erro preview: {e}")
+
+    def clear_image(self):
+        """Limpa as referências de imagem usando uma imagem invisível para evitar bugs do Tkinter."""
+        empty_img = ctk.CTkImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), size=(1, 1))
+        self.preview_label.configure(image=empty_img, text="Nenhum projeto aberto.")
+
+        self.pil_pdf_image = None
+        self.pdf_preview_image = None
+        self.original_composite_image = None
+        self.current_pdf_path = None
 
     def on_resize(self, event):
         if event.widget != self: return

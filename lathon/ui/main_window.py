@@ -32,8 +32,6 @@ from lathon.features.assistants.spell_checker import SpellCheckHandler
 from lathon.features.assistants.autocomplete import AutocompleteHandler
 from lathon.features.assistants.context_menu import ContextMenuManager
 from lathon.features.assistants.text_formatter import TextFormatter
-
-# AQUI ESTÁ A MÁGICA: Apenas o OptionsManager é importado para gerenciar as opções!
 from lathon.features.assistants.options_manager import OptionsManager
 
 
@@ -63,11 +61,8 @@ class MiniOverleaf(ctk.CTk):
         self._build_ui()
         self._bind_events()
 
-        # O TKINTER CARREGA A FONTE AQUI E "RESETA" A CAIXA
         layout_cfg = self.config.get_layout()
         self.apply_font_config(layout_cfg.get("font_family"), layout_cfg.get("font_size"))
-
-        # MANDAMOS O EDITOR PINTAR AS CORES LOGO EM SEGUIDA!
         self.editor.update_colors()
 
         if not self.latex_compiler: messagebox.showerror("Aviso", "Compilador LaTeX não encontrado.")
@@ -99,7 +94,6 @@ class MiniOverleaf(ctk.CTk):
         menu_btn_conf = {"width": 80, "height": 26, "fg_color": "transparent", "text_color": ("gray10", "gray90"),
                          "hover_color": ("gray80", "gray30"), "font": ("Segoe UI", 12)}
 
-        # --- Menu: Arquivo ---
         self.btn_file = ctk.CTkButton(top_inner, text="📄 Arquivo",
                                       command=lambda: self._popup_menu(self.menu_file, self.btn_file), **menu_btn_conf)
         self.btn_file.pack(side="left", padx=1)
@@ -113,7 +107,6 @@ class MiniOverleaf(ctk.CTk):
         self.menu_file.add_separator()
         self.menu_file.add_command(label="❌ Fechar Projeto", command=self._close_project)
 
-        # --- Menu: Inserir ---
         self.btn_insert = ctk.CTkButton(top_inner, text="➕ Inserir",
                                         command=lambda: self._popup_menu(self.menu_insert, self.btn_insert),
                                         **menu_btn_conf)
@@ -129,7 +122,6 @@ class MiniOverleaf(ctk.CTk):
         self.menu_insert.add_command(label="∑ Fórmula Matemática...",
                                      command=lambda: self.insert_manager.open_formula_wizard())
 
-        # --- Menu: Opções (AGORA GERENCIADO PELO OPTIONS_MANAGER) ---
         self.btn_options = ctk.CTkButton(top_inner, text="🛠 Opções",
                                          command=lambda: self._popup_menu(self.menu_options, self.btn_options),
                                          **menu_btn_conf)
@@ -145,7 +137,6 @@ class MiniOverleaf(ctk.CTk):
         self.menu_options.add_command(label="📝 Ver Lista de Marcações...",
                                       command=lambda: self.options_manager.open_markers_list())
         self.menu_options.add_separator()
-
         self.menu_options.add_checkbutton(label="👁 Evidenciar Capítulos (Ctrl+M)", variable=self.var_chap,
                                           command=lambda: self.options_manager.set_chapter_highlight(
                                               self.var_chap.get()))
@@ -154,11 +145,9 @@ class MiniOverleaf(ctk.CTk):
         self.menu_options.add_checkbutton(label="📝 Corretor Ortográfico", variable=self.var_spell,
                                           command=lambda: self.options_manager.set_spellcheck(self.var_spell.get()))
         self.menu_options.add_separator()
-
         self.menu_options.add_command(label="🌗 Alternar Tema (Ctrl+T)",
                                       command=lambda: self.options_manager.toggle_theme())
 
-        # --- Menu: Exportar ---
         self.btn_export = ctk.CTkButton(top_inner, text="📤 Exportar",
                                         command=lambda: self._popup_menu(self.menu_export, self.btn_export),
                                         **menu_btn_conf)
@@ -169,7 +158,6 @@ class MiniOverleaf(ctk.CTk):
         self.menu_export.add_command(label="📦 ZIP (Ctrl+Shift+E)",
                                      command=lambda: ProjectExporter.export_zip(self.project_dir))
 
-        # --- Menu: Config ---
         self.btn_config = ctk.CTkButton(top_inner, text="⚙️ Config",
                                         command=lambda: self._popup_menu(self.menu_config, self.btn_config),
                                         **menu_btn_conf)
@@ -182,7 +170,6 @@ class MiniOverleaf(ctk.CTk):
         self.menu_config.add_separator()
         self.menu_config.add_command(label="🖥 Configuração de Tela...", command=lambda: LayoutConfigDialog(self))
 
-        # --- Atalhos Rápidos de Formatação ---
         format_frame = ctk.CTkFrame(top_inner, fg_color="transparent", border_width=1,
                                     border_color=("gray70", "#454545"), corner_radius=6)
         format_frame.pack(side="left", padx=15, pady=4)
@@ -190,20 +177,20 @@ class MiniOverleaf(ctk.CTk):
                        "hover_color": ("gray80", "#3a3d41")}
 
         self.btn_b = ctk.CTkButton(format_frame, text="B", font=("Segoe UI", 12, "bold"),
-                                   command=lambda: TextFormatter.apply_format(self.editor, "bold"), **format_conf)
-        self.btn_b.pack(side="left", padx=2, pady=2);
+                                   command=self._format_bold_shortcut, **format_conf)
+        self.btn_b.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_b, "Negrito (Ctrl+B)")
         ctk.CTkFrame(format_frame, width=1, height=18, fg_color=("gray70", "#454545")).pack(side="left", padx=2)
 
         self.btn_i = ctk.CTkButton(format_frame, text="I", font=("Segoe UI", 12, "italic"),
-                                   command=lambda: TextFormatter.apply_format(self.editor, "italic"), **format_conf)
-        self.btn_i.pack(side="left", padx=2, pady=2);
+                                   command=self._format_italic_shortcut, **format_conf)
+        self.btn_i.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_i, "Itálico (Ctrl+I)")
         ctk.CTkFrame(format_frame, width=1, height=18, fg_color=("gray70", "#454545")).pack(side="left", padx=2)
 
         self.btn_u = ctk.CTkButton(format_frame, text="U", font=("Segoe UI", 12, "underline"),
-                                   command=lambda: TextFormatter.apply_format(self.editor, "underline"), **format_conf)
-        self.btn_u.pack(side="left", padx=2, pady=2);
+                                   command=self._format_underline_shortcut, **format_conf)
+        self.btn_u.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_u, "Sublinhado (Ctrl+U)")
 
         self.compile_button = ctk.CTkButton(top_inner, text="▶ Compile (Ctrl+S)", width=130, height=24,
@@ -211,13 +198,10 @@ class MiniOverleaf(ctk.CTk):
                                             font=("Segoe UI", 12, "bold"))
         self.compile_button.pack(side="right", padx=10)
 
-        # Botão de Informações (Sobre) - Posicionado ao canto direito
-        self.info_button = ctk.CTkButton(top_inner, text="?", width=26, height=24,
-                                         fg_color="transparent", border_width=1,
-                                         border_color=("gray70", "#454545"),
-                                         text_color=("gray10", "gray90"),
-                                         hover_color=("gray80", "#3a3d41"),
-                                         command=self._show_about_dialog)
+        self.info_button = ctk.CTkButton(top_inner, text="?", width=26, height=24, fg_color="transparent",
+                                         border_width=1,
+                                         border_color=("gray70", "#454545"), text_color=("gray10", "gray90"),
+                                         hover_color=("gray80", "#3a3d41"), command=self._show_about_dialog)
         self.info_button.pack(side="right", padx=(0, 5))
 
         # ==========================================
@@ -226,22 +210,21 @@ class MiniOverleaf(ctk.CTk):
         layout_cfg = self.config.get_layout()
         self.apply_layout_weights(layout_cfg["left"], layout_cfg["center"], layout_cfg["pdf"])
 
-        # Esquerda: Arquivos
         self.file_panel = FilePanel(self.main_frame, self)
         self.file_panel.grid(row=1, column=0, sticky="nsew", padx=(0, 2))
         self.file_panel.style_treeview()
 
-        # Centro: Editor e Localizador
         self.center_frame = ctk.CTkFrame(self.main_frame, fg_color=("white", "#1e1e1e"), corner_radius=0)
         self.center_frame.grid(row=1, column=1, sticky="nsew", padx=(0, 2))
-        self.center_frame.grid_rowconfigure(0, weight=1);
+        self.center_frame.grid_rowconfigure(0, weight=1)
         self.center_frame.grid_columnconfigure(0, weight=1)
         self.center_frame.grid_rowconfigure(3, weight=0, minsize=100)
 
         self.editor_area_frame = ctk.CTkFrame(self.center_frame, fg_color="transparent")
         self.editor_area_frame.grid(row=0, column=0, sticky="nsew")
-        self.editor_area_frame.grid_rowconfigure(0, weight=1);
+        self.editor_area_frame.grid_rowconfigure(0, weight=1)
         self.editor_area_frame.grid_columnconfigure(0, weight=1)
+
         self.editor = LaTeXEditor(self.editor_area_frame, self)
         self.editor.grid(row=0, column=0, sticky="nsew")
 
@@ -262,7 +245,6 @@ class MiniOverleaf(ctk.CTk):
         self.log.grid(row=3, column=0, sticky="nsew", pady=0)
         self.log.bind("<Button-1>", self._on_log_click)
 
-        # Direita: Preview PDF
         self.preview_panel = PreviewPanel(self.main_frame, self)
         self.preview_panel.grid(row=1, column=2, sticky="nsew")
 
@@ -274,7 +256,6 @@ class MiniOverleaf(ctk.CTk):
         self.chapter_highlighter = ChapterHighlighter(self.editor)
         self.insert_manager = InsertManager(self, self.editor)
         self.options_manager = OptionsManager(self)
-
         self.find_handler = FindReplaceHandler(self, self.editor, self.find_frame)
         self.autocomplete_handler = AutocompleteHandler(self, self.editor)
         self.spell_checker = SpellCheckHandler(self, self.editor)
@@ -282,37 +263,57 @@ class MiniOverleaf(ctk.CTk):
 
     def _show_about_dialog(self):
         about_text = (
-            "Lathon LaTeX Editor\n"
-            "Versão 1.0.1\n"
-            "Compilador Latex MiKTeX Portable\n"
-            "Desenvolvido por: Murilo Campos\n\n"
-            
-            "Em caso de bugs ou sujestões, entre em contato...\n"
-            "Fique a vontade e aproveite o Lathon!!!"
-        )
+            "Lathon LaTeX Editor\nVersão 1.0.1\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o Lathon!!!")
         messagebox.showinfo("Sobre o Lathon", about_text)
+
+    # --- Wrappers de Atalho (Executam a ação quando chamados por bind_all) ---
+    def _compile_shortcut(self, event=None):
+        self.compile_action()
+
+    def _export_pdf_shortcut(self, event=None):
+        ProjectExporter.export_pdf(self.project_dir, self.active_file)
+
+    def _export_zip_shortcut(self, event=None):
+        ProjectExporter.export_zip(self.project_dir)
+
+    def _format_bold_shortcut(self, event=None):
+        TextFormatter.apply_format(self.editor, "bold")
+
+    def _format_italic_shortcut(self, event=None):
+        TextFormatter.apply_format(self.editor, "italic")
+
+    def _format_underline_shortcut(self, event=None):
+        TextFormatter.apply_format(self.editor, "underline")
+
+    def _find_shortcut(self, event=None):
+        self.options_manager.show_find_dialog()
 
     def _toggle_chapter_shortcut(self, event=None):
         new_val = not self.var_chap.get()
         self.var_chap.set(new_val)
         self.options_manager.set_chapter_highlight(new_val)
 
-    def _bind_events(self):
-        self.bind_all("<Control-s>", lambda e: self.compile_action())
-        self.bind_all("<Control-e>", lambda e: ProjectExporter.export_pdf(self.project_dir, self.active_file))
-        self.bind_all("<Control-E>", lambda e: ProjectExporter.export_zip(self.project_dir))
-        self.bind_all("<Control-b>", lambda e: TextFormatter.apply_format(self.editor, "bold"))
-        self.bind_all("<Control-i>", lambda e: TextFormatter.apply_format(self.editor, "italic"))
-        self.bind_all("<Control-u>", lambda e: TextFormatter.apply_format(self.editor, "underline"))
+    def _toggle_theme_shortcut(self, event=None):
+        self.options_manager.toggle_theme()
 
-        self.bind_all("<Control-f>", lambda e: self.options_manager.show_find_dialog())
+    def _bind_events(self):
+        # Bind global para quando o foco estiver na árvore ou outro painel
+        self.bind_all("<Control-s>", self._compile_shortcut)
+        self.bind_all("<Control-e>", self._export_pdf_shortcut)
+        self.bind_all("<Control-E>", self._export_zip_shortcut)
+        self.bind_all("<Control-b>", self._format_bold_shortcut)
+        self.bind_all("<Control-i>", self._format_italic_shortcut)
+        self.bind_all("<Control-u>", self._format_underline_shortcut)
+        self.bind_all("<Control-f>", self._find_shortcut)
         self.bind_all("<Control-m>", self._toggle_chapter_shortcut)
-        self.bind_all("<Control-t>", lambda e: self.options_manager.toggle_theme())
+        self.bind_all("<Control-t>", self._toggle_theme_shortcut)
 
     def apply_layout_weights(self, left_pct, center_pct, pdf_pct):
-        self.main_frame.grid_columnconfigure(0, weight=left_pct)
-        self.main_frame.grid_columnconfigure(1, weight=center_pct)
-        self.main_frame.grid_columnconfigure(2, weight=pdf_pct)
+        # BUG FIX 1: O 'uniform' obriga o grid a respeitar as colunas
+        self.main_frame.grid_columnconfigure(0, weight=left_pct, uniform="colunas")
+        self.main_frame.grid_columnconfigure(1, weight=center_pct, uniform="colunas")
+        self.main_frame.grid_columnconfigure(2, weight=pdf_pct, uniform="colunas")
+
         self.config.update_layout(left=left_pct, center=center_pct, pdf=pdf_pct)
         if self.project_dir: self.compile_action()
 
@@ -356,9 +357,6 @@ class MiniOverleaf(ctk.CTk):
         except:
             pass
 
-    # ==========================================
-    # GERENCIAMENTO DE PROJETO
-    # ==========================================
     def _create_project_flow(self):
         self._close_project()
         self.welcome_screen._show_create_options()
@@ -411,8 +409,10 @@ class MiniOverleaf(ctk.CTk):
         self.file_panel.clear_tree_and_outline()
         self.find_handler.hide_dialog()
         self.editor.delete("1.0", "end")
-        self.preview_panel.preview_label.configure(image=None, text="Nenhum projeto aberto.")
-        self.preview_panel.pil_pdf_image = None
+
+        # BUG FIX 4: Limpa o preview explicitamente
+        self.preview_panel.clear_image()
+
         self.chapter_highlighter.is_active = False
         self.title("LaThon LaTeX Editor")
         try:
@@ -442,6 +442,10 @@ class MiniOverleaf(ctk.CTk):
             self.active_file = file_path
             self.editor.delete("1.0", "end")
             self.editor.insert("1.0", file_path.read_text(encoding="utf-8", errors="ignore"))
+
+            # BUG FIX 3: Resetar Undo History
+            self.editor.clear_undo_history()
+
             self.log_line(f"Abriu: {self.active_file.name}")
             self.file_panel.update_file_outline()
             self.editor.apply_syntax_highlighting()
