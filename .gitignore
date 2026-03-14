@@ -7,7 +7,7 @@
 !*.spec
 !*.bat
 !requirements.txt
-!ReadMe.txt
+!README.md
 !.gitignore
 
 # 3. EXCEÇÃO DE PASTAS DE ATIVOS
