@@ -1,6 +1,8 @@
 from lathon.ui.widgets.modern_menu import ModernMenu
-# --- CORREÇÃO: O MarkerDialog mora na pasta widgets! ---
-from lathon.ui.widgets.marker_dialog import MarkerDialog
+from lathon.features.assistants.marker_dialog import MarkerDialog
+
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors
 
 class ContextMenuManager:
     """Gerencia a exibição do menu de botão direito, delegando as ações para os respectivos módulos."""
@@ -15,7 +17,6 @@ class ContextMenuManager:
         self.context_menu.clear()
         index = self.editor.index(f"@{event.x},{event.y}")
 
-        # --- INTELIGÊNCIA DE SELEÇÃO DO CLIQUE DIREITO ---
         try:
             sel_start, sel_end = self.editor.tag_ranges("sel")
             if self.editor.compare(index, "<", sel_start) or self.editor.compare(index, ">=", sel_end):
@@ -41,12 +42,12 @@ class ContextMenuManager:
         mark_tag = next((t for t in tags_at_click if t.startswith("user_mark_")), None)
 
         if mark_tag:
-            self.context_menu.add_command("🗑️ Remover Marcação", lambda t=mark_tag: self.editor.remove_marker(t), text_color="#cf222e")
+            self.context_menu.add_command("Remover Marcação", lambda t=mark_tag: self.editor.remove_marker(t), text_color=Colors.BTN_DANGER)
             self.context_menu.add_separator()
         else:
             try:
                 if self.editor.tag_ranges("sel"):
-                    self.context_menu.add_command("🖍️ Marcar Texto...", lambda: self._prompt_mark())
+                    self.context_menu.add_command("Marcar Texto...", lambda: self._prompt_mark())
                     self.context_menu.add_separator()
             except ValueError: pass
 
@@ -54,7 +55,6 @@ class ContextMenuManager:
         try: sel_start, sel_end = self.editor.tag_ranges("sel")
         except ValueError: return
 
-        # Abre a janela de marcação (que está em widgets)
         d = MarkerDialog(self.app)
         result = d.get_data()
 

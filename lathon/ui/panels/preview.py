@@ -1,6 +1,9 @@
 from pathlib import Path
 import customtkinter as ctk
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors
+
 try:
     import fitz  # PyMuPDF
     from PIL import Image
@@ -8,20 +11,18 @@ try:
 except ImportError:
     PYMUPDF_AVAILABLE = False
 
-
 class PreviewPanel(ctk.CTkFrame):
     """Componente Visual: O Painel Direito que exibe o PDF compilado."""
 
     def __init__(self, master, app, **kwargs):
-        super().__init__(master, fg_color=("gray85", "#525659"), corner_radius=0, **kwargs)
+        super().__init__(master, fg_color=Colors.BG_SIDEBAR, corner_radius=0, **kwargs)
         self.app = app
 
         # --- CONSTRUÇÃO DA INTERFACE ---
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
 
-        scroll_conf = {"scrollbar_button_color": ("#bfbfbf", "#7a7a7a"),
-                       "scrollbar_button_hover_color": ("#a6a6a6", "#a0a0a0")}
+        scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN, "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
         self.preview_frame = ctk.CTkScrollableFrame(self, label_text="", fg_color="transparent", **scroll_conf)
         self.preview_frame.grid(row=0, column=0, sticky="nsew")
 
@@ -101,7 +102,6 @@ class PreviewPanel(ctk.CTkFrame):
             self.app.log_line(f"Erro preview: {e}")
 
     def clear_image(self):
-        """Limpa as referências de imagem usando uma imagem invisível para evitar bugs do Tkinter."""
         empty_img = ctk.CTkImage(Image.new("RGBA", (1, 1), (0, 0, 0, 0)), size=(1, 1))
         self.preview_label.configure(image=empty_img, text="Nenhum projeto aberto.")
 

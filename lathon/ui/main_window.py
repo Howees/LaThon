@@ -34,12 +34,17 @@ from lathon.features.assistants.context_menu import ContextMenuManager
 from lathon.features.assistants.text_formatter import TextFormatter
 from lathon.features.assistants.options_manager import OptionsManager
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo, resource_path
 
 class MiniOverleaf(ctk.CTk):
     def __init__(self):
         super().__init__()
 
         self.title("LaThon LaTeX Editor")
+
+        Icons.set_window_icon(self)
+
         self.geometry("1200x800")
 
         self.config = ConfigManager()
@@ -55,8 +60,7 @@ class MiniOverleaf(ctk.CTk):
         self.welcome_screen = WelcomeScreen(self, self)
         self.welcome_screen.grid(row=0, column=0, sticky="nsew")
 
-        self.scroll_conf = {"scrollbar_button_color": ("#bfbfbf", "#7a7a7a"),
-                            "scrollbar_button_hover_color": ("#a6a6a6", "#a0a0a0")}
+        self.scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN, "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
 
         self._build_ui()
         self._bind_events()
@@ -69,140 +73,137 @@ class MiniOverleaf(ctk.CTk):
         self.process_queue()
 
     def _build_ui(self):
-        is_dark = ctk.get_appearance_mode() == "Dark"
-
-        self.main_frame = ctk.CTkFrame(self, fg_color="#2b2b2b" if is_dark else "#e6e6e6", corner_radius=0)
+        self.main_frame = ctk.CTkFrame(self, fg_color=Colors.BG_MAIN, corner_radius=0)
         self.main_frame.grid_rowconfigure(1, weight=1)
 
         # ==========================================
         # 1. BARRA SUPERIOR E MENUS
         # ==========================================
-        top_frame = ctk.CTkFrame(self.main_frame, height=35, corner_radius=0, fg_color=("gray90", "#1f1f1f"),
-                                 border_width=0)
+        top_frame = ctk.CTkFrame(self.main_frame, height=35, corner_radius=0, fg_color=Colors.BG_TOPBAR, border_width=0)
         top_frame.grid(row=0, column=0, columnspan=3, sticky="ew")
         top_frame.grid_propagate(False)
-        ctk.CTkFrame(top_frame, height=1, fg_color=("gray80", "#2b2b2b")).pack(side="bottom", fill="x")
+        ctk.CTkFrame(top_frame, height=1, fg_color=Colors.BORDER).pack(side="bottom", fill="x")
 
         top_inner = ctk.CTkFrame(top_frame, fg_color="transparent")
         top_inner.pack(fill="both", expand=True, padx=5)
 
-        ctk.CTkLabel(top_inner, text="La", font=("Segoe UI", 16, "bold"), text_color="#2ea043").pack(side="left",
-                                                                                                     padx=(5, 0))
-        ctk.CTkLabel(top_inner, text="Thon", font=("Segoe UI", 16, "bold"), text_color="#41a5ee").pack(side="left",
-                                                                                                       padx=(0, 15))
+        create_lathon_logo(top_inner, font_size=16).pack(side="left", padx=5, pady=4)
 
-        menu_btn_conf = {"width": 80, "height": 26, "fg_color": "transparent", "text_color": ("gray10", "gray90"),
-                         "hover_color": ("gray80", "gray30"), "font": ("Segoe UI", 12)}
+        menu_btn_conf = {"height": 26, "fg_color": "transparent", "text_color": Colors.BTN_TRANSPARENT_TEXT,
+                         "hover_color": Colors.BTN_HOVER, "font": Fonts.UI}
+        menu_bg = Colors.BG_MAIN[1]
 
-        self.btn_file = ctk.CTkButton(top_inner, text="📄 Arquivo",
+        self.btn_file = ctk.CTkButton(top_inner, text=" Arquivo", image=Icons.get_ctk_image("folder.png"),
                                       command=lambda: self._popup_menu(self.menu_file, self.btn_file), **menu_btn_conf)
-        self.btn_file.pack(side="left", padx=1)
-        self.menu_file = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
-        self.menu_file.add_command(label="✨ Novo Projeto", command=self._create_project_flow)
-        self.menu_file.add_command(label="📂 Abrir Projeto", command=self._open_project_flow)
+        self.btn_file.pack(side="left", padx=2)
+        self.menu_file = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_file.add_command(label=" Novo Projeto", image=Icons.get_treeview_icon("new.png"), compound="left",
+                                   command=self._create_project_flow)
+        self.menu_file.add_command(label=" Abrir Projeto", image=Icons.get_treeview_icon("open.png"), compound="left",
+                                   command=self._open_project_flow)
         self.menu_file.add_separator()
-        self.menu_file.add_command(label="💾 Salvar (Ctrl+S)", command=self.compile_action)
+        self.menu_file.add_command(label=" Salvar (Ctrl+S)", image=Icons.get_treeview_icon("save.png"), compound="left",
+                                   command=self.compile_action)
         self.menu_file.add_separator()
-        self.menu_file.add_command(label="🧹 Limpar Temporários", command=self._clean_aux_files)
+        self.menu_file.add_command(label=" Limpar Temporários", image=Icons.get_treeview_icon("clean.png"),
+                                   compound="left", command=self._clean_aux_files)
         self.menu_file.add_separator()
-        self.menu_file.add_command(label="❌ Fechar Projeto", command=self._close_project)
+        self.menu_file.add_command(label=" Fechar Projeto", image=Icons.get_treeview_icon("close.png"), compound="left",
+                                   command=self._close_project)
 
-        self.btn_insert = ctk.CTkButton(top_inner, text="➕ Inserir",
+        self.btn_insert = ctk.CTkButton(top_inner, text=" Inserir", image=Icons.get_ctk_image("insert.png"),
                                         command=lambda: self._popup_menu(self.menu_insert, self.btn_insert),
                                         **menu_btn_conf)
-        self.btn_insert.pack(side="left", padx=1)
-        self.menu_insert = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
-        self.menu_insert.add_command(label="▦ Tabela Básica...",
-                                     command=lambda: self.insert_manager.open_table_wizard())
-        self.menu_insert.add_command(label="🖼 Figura Simples...",
-                                     command=lambda: self.insert_manager.open_figure_wizard())
-        self.menu_insert.add_command(label="🖼▦ Tabela de Figuras...",
-                                     command=lambda: self.insert_manager.open_image_table_wizard())
+        self.btn_insert.pack(side="left", padx=2)
+        self.menu_insert = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_insert.add_command(label=" Tabela Básica...", image=Icons.get_treeview_icon("table.png"),
+                                     compound="left", command=lambda: self.insert_manager.open_table_wizard())
+        self.menu_insert.add_command(label=" Figura Simples...", image=Icons.get_treeview_icon("figure.png"),
+                                     compound="left", command=lambda: self.insert_manager.open_figure_wizard())
+        self.menu_insert.add_command(label=" Tabela de Figuras...", image=Icons.get_treeview_icon("table_fig.png"),
+                                     compound="left", command=lambda: self.insert_manager.open_image_table_wizard())
         self.menu_insert.add_separator()
-        self.menu_insert.add_command(label="∑ Fórmula Matemática...",
-                                     command=lambda: self.insert_manager.open_formula_wizard())
+        self.menu_insert.add_command(label=" Fórmula Matemática...", image=Icons.get_treeview_icon("math.png"),
+                                     compound="left", command=lambda: self.insert_manager.open_formula_wizard())
 
-        self.btn_options = ctk.CTkButton(top_inner, text="🛠 Opções",
+        self.btn_options = ctk.CTkButton(top_inner, text=" Opções", image=Icons.get_ctk_image("options.png"),
                                          command=lambda: self._popup_menu(self.menu_options, self.btn_options),
                                          **menu_btn_conf)
-        self.btn_options.pack(side="left", padx=1)
-        self.menu_options = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
+        self.btn_options.pack(side="left", padx=2)
+        self.menu_options = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
 
         self.var_chap = tk.BooleanVar(value=False)
         self.var_auto = tk.BooleanVar(value=True)
         self.var_spell = tk.BooleanVar(value=True)
 
-        self.menu_options.add_command(label="🔍 Localizar (Ctrl+F)",
-                                      command=lambda: self.options_manager.show_find_dialog())
-        self.menu_options.add_command(label="📝 Ver Lista de Marcações...",
-                                      command=lambda: self.options_manager.open_markers_list())
+        self.menu_options.add_command(label=" Localizar (Ctrl+F)", image=Icons.get_treeview_icon("search.png"),
+                                      compound="left", command=lambda: self.options_manager.show_find_dialog())
+        self.menu_options.add_command(label=" Ver Lista de Marcações...", image=Icons.get_treeview_icon("list.png"),
+                                      compound="left", command=lambda: self.options_manager.open_markers_list())
         self.menu_options.add_separator()
-        self.menu_options.add_checkbutton(label="👁 Evidenciar Capítulos (Ctrl+M)", variable=self.var_chap,
-                                          command=lambda: self.options_manager.set_chapter_highlight(
-                                              self.var_chap.get()))
-        self.menu_options.add_checkbutton(label="✨ Autocompletar LaTeX", variable=self.var_auto,
-                                          command=lambda: self.options_manager.set_autocomplete(self.var_auto.get()))
-        self.menu_options.add_checkbutton(label="📝 Corretor Ortográfico", variable=self.var_spell,
-                                          command=lambda: self.options_manager.set_spellcheck(self.var_spell.get()))
-        self.menu_options.add_separator()
-        self.menu_options.add_command(label="🌗 Alternar Tema (Ctrl+T)",
-                                      command=lambda: self.options_manager.toggle_theme())
 
-        self.btn_export = ctk.CTkButton(top_inner, text="📤 Exportar",
+        # Checkbuttons mantidos sem ícone customizado para não quebrar o "V" de seleção nativo
+        self.menu_options.add_checkbutton(label="Evidenciar Capítulos (Ctrl+M)", variable=self.var_chap, selectcolor=Colors.THON,
+                                          command=lambda: self.options_manager.set_chapter_highlight(self.var_chap.get()))
+        self.menu_options.add_checkbutton(label="Autocompletar LaTeX", variable=self.var_auto, selectcolor=Colors.THON,
+                                          command=lambda: self.options_manager.set_autocomplete(self.var_auto.get()))
+        self.menu_options.add_checkbutton(label="Corretor Ortográfico", variable=self.var_spell, selectcolor=Colors.THON,
+                                          command=lambda: self.options_manager.set_spellcheck(self.var_spell.get()))
+
+        self.menu_options.add_separator()
+        self.menu_options.add_command(label=" Alternar Tema (Ctrl+T)", image=Icons.get_treeview_icon("theme.png"),
+                                      compound="left", command=lambda: self.options_manager.toggle_theme())
+
+        self.btn_export = ctk.CTkButton(top_inner, text=" Exportar", image=Icons.get_ctk_image("export.png"),
                                         command=lambda: self._popup_menu(self.menu_export, self.btn_export),
                                         **menu_btn_conf)
-        self.btn_export.pack(side="left", padx=1)
-        self.menu_export = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
-        self.menu_export.add_command(label="📄 PDF (Ctrl+E)",
+        self.btn_export.pack(side="left", padx=2)
+        self.menu_export = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_export.add_command(label=" PDF (Ctrl+E)", image=Icons.get_treeview_icon("pdf.png"), compound="left",
                                      command=lambda: ProjectExporter.export_pdf(self.project_dir, self.active_file))
-        self.menu_export.add_command(label="📦 ZIP (Ctrl+Shift+E)",
-                                     command=lambda: ProjectExporter.export_zip(self.project_dir))
+        self.menu_export.add_command(label=" ZIP (Ctrl+Shift+E)", image=Icons.get_treeview_icon("zip.png"),
+                                     compound="left", command=lambda: ProjectExporter.export_zip(self.project_dir))
 
-        self.btn_config = ctk.CTkButton(top_inner, text="⚙️ Config",
+        self.btn_config = ctk.CTkButton(top_inner, text=" Config", image=Icons.get_ctk_image("config.png"),
                                         command=lambda: self._popup_menu(self.menu_config, self.btn_config),
                                         **menu_btn_conf)
-        self.btn_config.pack(side="left", padx=1)
-        self.menu_config = tk.Menu(self, tearoff=0, bg="#2b2b2b", fg="white", activebackground="#4158D0")
-        self.menu_config.add_command(label="📝 Corretor Ortográfico...",
-                                     command=lambda: SpellConfigDialog(self, self.spell_checker))
+        self.btn_config.pack(side="left", padx=2)
+        self.menu_config = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_config.add_command(label=" Corretor Ortográfico...", image=Icons.get_treeview_icon("spell.png"),
+                                     compound="left", command=lambda: SpellConfigDialog(self, self.spell_checker))
         self.menu_config.add_separator()
-        self.menu_config.add_command(label="🔤 Fonte do Editor...", command=lambda: FontConfigDialog(self))
+        self.menu_config.add_command(label=" Fonte do Editor...", image=Icons.get_treeview_icon("font.png"),
+                                     compound="left", command=lambda: FontConfigDialog(self))
         self.menu_config.add_separator()
-        self.menu_config.add_command(label="🖥 Configuração de Tela...", command=lambda: LayoutConfigDialog(self))
+        self.menu_config.add_command(label=" Configuração de Tela...", image=Icons.get_treeview_icon("layout.png"),
+                                     compound="left", command=lambda: LayoutConfigDialog(self))
 
-        format_frame = ctk.CTkFrame(top_inner, fg_color="transparent", border_width=1,
-                                    border_color=("gray70", "#454545"), corner_radius=6)
+        format_frame = ctk.CTkFrame(top_inner, fg_color="transparent", border_width=1, border_color=Colors.BORDER, corner_radius=6)
         format_frame.pack(side="left", padx=15, pady=4)
-        format_conf = {"width": 30, "height": 24, "fg_color": "transparent", "text_color": ("gray10", "gray90"),
-                       "hover_color": ("gray80", "#3a3d41")}
+        format_conf = {"width": 30, "height": 24, "fg_color": "transparent", "text_color": Colors.BTN_TRANSPARENT_TEXT, "hover_color": Colors.BTN_HOVER}
 
-        self.btn_b = ctk.CTkButton(format_frame, text="B", font=("Segoe UI", 12, "bold"),
-                                   command=self._format_bold_shortcut, **format_conf)
+        self.btn_b = ctk.CTkButton(format_frame, text="B", font=Fonts.UI_BOLD, command=self._format_bold_shortcut, **format_conf)
         self.btn_b.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_b, "Negrito (Ctrl+B)")
-        ctk.CTkFrame(format_frame, width=1, height=18, fg_color=("gray70", "#454545")).pack(side="left", padx=2)
+        ctk.CTkFrame(format_frame, width=1, height=18, fg_color=Colors.BORDER).pack(side="left", padx=2)
 
-        self.btn_i = ctk.CTkButton(format_frame, text="I", font=("Segoe UI", 12, "italic"),
-                                   command=self._format_italic_shortcut, **format_conf)
+        self.btn_i = ctk.CTkButton(format_frame, text="I", font=("Segoe UI", 12, "italic"), command=self._format_italic_shortcut, **format_conf)
         self.btn_i.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_i, "Itálico (Ctrl+I)")
-        ctk.CTkFrame(format_frame, width=1, height=18, fg_color=("gray70", "#454545")).pack(side="left", padx=2)
+        ctk.CTkFrame(format_frame, width=1, height=18, fg_color=Colors.BORDER).pack(side="left", padx=2)
 
-        self.btn_u = ctk.CTkButton(format_frame, text="U", font=("Segoe UI", 12, "underline"),
-                                   command=self._format_underline_shortcut, **format_conf)
+        self.btn_u = ctk.CTkButton(format_frame, text="U", font=("Segoe UI", 12, "underline"), command=self._format_underline_shortcut, **format_conf)
         self.btn_u.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_u, "Sublinhado (Ctrl+U)")
 
-        self.compile_button = ctk.CTkButton(top_inner, text="▶ Compile (Ctrl+S)", width=130, height=24,
-                                            command=self.compile_action, fg_color="#238636", hover_color="#2ea043",
-                                            font=("Segoe UI", 12, "bold"))
+        self.compile_button = ctk.CTkButton(top_inner, text=" Compile (Ctrl+S)", image=Icons.get_ctk_image("compile.png"), height=24,
+                                            command=self.compile_action, fg_color=Colors.BTN_PRIMARY, hover_color=Colors.BTN_PRIMARY_HOVER, font=Fonts.UI_BOLD)
         self.compile_button.pack(side="right", padx=10)
 
-        self.info_button = ctk.CTkButton(top_inner, text="?", width=26, height=24, fg_color="transparent",
-                                         border_width=1,
-                                         border_color=("gray70", "#454545"), text_color=("gray10", "gray90"),
-                                         hover_color=("gray80", "#3a3d41"), command=self._show_about_dialog)
+        self.info_button = ctk.CTkButton(top_inner, text="", image=Icons.get_ctk_image("info.png"), width=26, height=24, fg_color="transparent", border_width=0,
+                                         hover_color=Colors.BTN_HOVER, command=self._show_about_dialog)
         self.info_button.pack(side="right", padx=(0, 5))
+        ToolTip(self.info_button, "Informações do LaThon")
 
         # ==========================================
         # 2. CONSTRUÇÃO DOS COMPONENTES (PAINÉIS)
@@ -214,7 +215,7 @@ class MiniOverleaf(ctk.CTk):
         self.file_panel.grid(row=1, column=0, sticky="nsew", padx=(0, 2))
         self.file_panel.style_treeview()
 
-        self.center_frame = ctk.CTkFrame(self.main_frame, fg_color=("white", "#1e1e1e"), corner_radius=0)
+        self.center_frame = ctk.CTkFrame(self.main_frame, fg_color=Colors.BG_PANEL, corner_radius=0)
         self.center_frame.grid(row=1, column=1, sticky="nsew", padx=(0, 2))
         self.center_frame.grid_rowconfigure(0, weight=1)
         self.center_frame.grid_columnconfigure(0, weight=1)
@@ -228,20 +229,16 @@ class MiniOverleaf(ctk.CTk):
         self.editor = LaTeXEditor(self.editor_area_frame, self)
         self.editor.grid(row=0, column=0, sticky="nsew")
 
-        self.image_viewer_container = ctk.CTkScrollableFrame(self.center_frame, label_text="", fg_color="transparent",
-                                                             **self.scroll_conf)
+        self.image_viewer_container = ctk.CTkScrollableFrame(self.center_frame, label_text="", fg_color="transparent", **self.scroll_conf)
         self.image_viewer_label = ctk.CTkLabel(self.image_viewer_container, text="")
         self.image_viewer_label.pack(expand=True, padx=5, pady=5)
 
-        self.find_frame = ctk.CTkFrame(self.center_frame, fg_color=("#e6e6e6", "#2b2b2b"), corner_radius=6,
-                                       border_width=1, border_color=("gray70", "#454545"))
+        self.find_frame = ctk.CTkFrame(self.center_frame, fg_color=Colors.BG_MAIN, corner_radius=6, border_width=1, border_color=Colors.BORDER)
 
-        log_header = ctk.CTkFrame(self.center_frame, height=20, fg_color=("gray85", "#333333"), corner_radius=0)
+        log_header = ctk.CTkFrame(self.center_frame, height=20, fg_color=Colors.BG_SIDEBAR, corner_radius=0)
         log_header.grid(row=2, column=0, sticky="ew")
-        ctk.CTkLabel(log_header, text="TERMINAL / LOG", font=("Segoe UI", 10, "bold"),
-                     text_color=("gray30", "gray60")).pack(side="left", padx=5)
-        self.log = ctk.CTkTextbox(self.center_frame, font=("Consolas", 10), state="disabled",
-                                  fg_color=("white", "#1e1e1e"))
+        ctk.CTkLabel(log_header, text="TERMINAL / LOG", font=Fonts.LOG_BOLD, text_color=Colors.TEXT_MUTED).pack(side="left", padx=5)
+        self.log = ctk.CTkTextbox(self.center_frame, font=Fonts.LOG, state="disabled", fg_color=Colors.BG_PANEL)
         self.log.grid(row=3, column=0, sticky="nsew", pady=0)
         self.log.bind("<Button-1>", self._on_log_click)
 
@@ -262,11 +259,9 @@ class MiniOverleaf(ctk.CTk):
         self.context_menu_manager = ContextMenuManager(self, self.editor, self.spell_checker)
 
     def _show_about_dialog(self):
-        about_text = (
-            "Lathon LaTeX Editor\nVersão 1.0.1\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o Lathon!!!")
+        about_text = ("Lathon LaTeX Editor\nVersão 1.2\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o Lathon!!!")
         messagebox.showinfo("Sobre o Lathon", about_text)
 
-    # --- Wrappers de Atalho (Executam a ação quando chamados por bind_all) ---
     def _compile_shortcut(self, event=None):
         self.compile_action()
 
@@ -297,19 +292,29 @@ class MiniOverleaf(ctk.CTk):
         self.options_manager.toggle_theme()
 
     def _bind_events(self):
-        # Bind global para quando o foco estiver na árvore ou outro painel
-        self.bind_all("<Control-s>", self._compile_shortcut)
-        self.bind_all("<Control-e>", self._export_pdf_shortcut)
-        self.bind_all("<Control-E>", self._export_zip_shortcut)
-        self.bind_all("<Control-b>", self._format_bold_shortcut)
-        self.bind_all("<Control-i>", self._format_italic_shortcut)
-        self.bind_all("<Control-u>", self._format_underline_shortcut)
-        self.bind_all("<Control-f>", self._find_shortcut)
-        self.bind_all("<Control-m>", self._toggle_chapter_shortcut)
-        self.bind_all("<Control-t>", self._toggle_theme_shortcut)
+        self.bind_all("<Control-s>", lambda e: self._handle_shortcut(self._compile_shortcut))
+        self.bind_all("<Control-e>", lambda e: self._handle_shortcut(self._export_pdf_shortcut))
+        self.bind_all("<Control-E>", lambda e: self._handle_shortcut(self._export_zip_shortcut))
+        self.bind_all("<Control-b>", lambda e: self._handle_shortcut(self._format_bold_shortcut))
+        self.bind_all("<Control-i>", lambda e: self._handle_shortcut(self._format_italic_shortcut))
+        self.bind_all("<Control-u>", lambda e: self._handle_shortcut(self._format_underline_shortcut))
+        self.bind_all("<Control-f>", lambda e: self._handle_shortcut(self._find_shortcut))
+        self.bind_all("<Control-m>", lambda e: self._handle_shortcut(self._toggle_chapter_shortcut))
+        self.bind_all("<Control-t>", lambda e: self._handle_shortcut(self._toggle_theme_shortcut))
+        self.editor.bind("<KeyRelease>", self._schedule_outline_update, add="+")
+        self._outline_timer = None
+
+    def _handle_shortcut(self, func):
+        func()
+        return "break"
+
+    def _schedule_outline_update(self, event=None):
+        """Atualiza o painel de Estrutura 1 segundo após o usuário parar de digitar."""
+        if getattr(self, '_outline_timer', None):
+            self.after_cancel(self._outline_timer)
+        self._outline_timer = self.after(1000, self.file_panel.update_file_outline)
 
     def apply_layout_weights(self, left_pct, center_pct, pdf_pct):
-        # BUG FIX 1: O 'uniform' obriga o grid a respeitar as colunas
         self.main_frame.grid_columnconfigure(0, weight=left_pct, uniform="colunas")
         self.main_frame.grid_columnconfigure(1, weight=center_pct, uniform="colunas")
         self.main_frame.grid_columnconfigure(2, weight=pdf_pct, uniform="colunas")
@@ -410,7 +415,6 @@ class MiniOverleaf(ctk.CTk):
         self.find_handler.hide_dialog()
         self.editor.delete("1.0", "end")
 
-        # BUG FIX 4: Limpa o preview explicitamente
         self.preview_panel.clear_image()
 
         self.chapter_highlighter.is_active = False
@@ -443,7 +447,6 @@ class MiniOverleaf(ctk.CTk):
             self.editor.delete("1.0", "end")
             self.editor.insert("1.0", file_path.read_text(encoding="utf-8", errors="ignore"))
 
-            # BUG FIX 3: Resetar Undo History
             self.editor.clear_undo_history()
 
             self.log_line(f"Abriu: {self.active_file.name}")
@@ -485,7 +488,7 @@ class MiniOverleaf(ctk.CTk):
         self.log.delete('1.0', 'end');
         self.log.configure(state="disabled")
         self.log_line(f"Compilando: {main_file.name}")
-        self.compile_button.configure(state="disabled", text="Compilando...", fg_color="gray")
+        self.compile_button.configure(state="disabled", text=" Compilando...", fg_color="gray")
         CompilerThread(self.project_dir, main_file.name, self.latex_compiler, self.queue).start()
 
     def process_queue(self):
@@ -494,7 +497,7 @@ class MiniOverleaf(ctk.CTk):
             if isinstance(msg, tuple):
                 if msg[0] == "finished":
                     if self.download_notification_window: self.download_notification_window.destroy(); self.download_notification_window = None
-                    self.compile_button.configure(state="normal", text="▶ Compile (Ctrl+S)", fg_color="#238636")
+                    self.compile_button.configure(state="normal", text=" Compile (Ctrl+S)", fg_color=Colors.BTN_PRIMARY)
                     if self.project_dir:
                         main_file = next((f for f in list(self.project_dir.rglob("*.tex")) if
                                           f.name.lower() in ("main.tex", "root.tex")), self.active_file)

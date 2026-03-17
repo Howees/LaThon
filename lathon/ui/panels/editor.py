@@ -2,6 +2,9 @@ import tkinter as tk
 import customtkinter as ctk
 import re
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts
+
 
 class LaTeXEditor(ctk.CTkFrame):
     """Componente Visual: A área central de digitação do código LaTeX."""
@@ -13,14 +16,13 @@ class LaTeXEditor(ctk.CTkFrame):
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
-        self.line_number_bar = ctk.CTkTextbox(self, width=45, font=("Consolas", 12), state="disabled",
-                                              activate_scrollbars=False, fg_color=("gray92", "#252526"),
-                                              text_color="gray50")
+        self.line_number_bar = ctk.CTkTextbox(self, width=45, font=Fonts.MONO, state="disabled",
+                                              activate_scrollbars=False, fg_color=Colors.BG_SIDEBAR,
+                                              text_color=Colors.TEXT_MUTED)
         self.line_number_bar.grid(row=0, column=0, sticky="nsw")
         self.line_number_bar._textbox.configure(spacing1=0, spacing2=0, spacing3=2)
 
-        self.textbox = ctk.CTkTextbox(self, font=("Consolas", 12), wrap="word", undo=True,
-                                      fg_color=("white", "#1a1a1a"))
+        self.textbox = ctk.CTkTextbox(self, font=Fonts.MONO, wrap="word", undo=True, fg_color=Colors.BG_PANEL)
         self.textbox.grid(row=0, column=1, sticky="nsew")
         self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=2, exportselection=False)
         self._textbox = self.textbox._textbox
@@ -42,7 +44,6 @@ class LaTeXEditor(ctk.CTkFrame):
         self.textbox.bind("<Control-y>", self.redo)
         self.textbox.bind("<Control-Shift-Z>", self.redo)
 
-        # BUG FIX 2: Intercepta os atalhos NA CAIXA DE TEXTO, executa a ação principal E retorna break
         self.textbox.bind("<Control-t>", lambda e: self._override_shortcut(e, self.app._toggle_theme_shortcut))
         self.textbox.bind("<Control-b>", lambda e: self._override_shortcut(e, self.app._format_bold_shortcut))
         self.textbox.bind("<Control-i>", lambda e: self._override_shortcut(e, self.app._format_italic_shortcut))
@@ -54,7 +55,6 @@ class LaTeXEditor(ctk.CTkFrame):
         self.textbox.bind("<Control-s>", lambda e: self._override_shortcut(e, self.app._compile_shortcut))
 
     def _override_shortcut(self, event, action):
-        """Executa a ação e mata o comportamento nativo (Ex: Transpose do Ctrl+T)"""
         action()
         return "break"
 
@@ -86,7 +86,7 @@ class LaTeXEditor(ctk.CTkFrame):
         self.mark_tw.wm_overrideredirect(True)
         self.mark_tw.wm_geometry(f"+{x}+{y}")
         tk.Label(self.mark_tw, text=comment, justify='left', background="#ffffe0", foreground="black", relief='solid',
-                 borderwidth=1, font=("Segoe UI", 10)).pack(ipadx=6, ipady=3)
+                 borderwidth=1, font=Fonts.UI).pack(ipadx=6, ipady=3)
 
     def _hide_mark_tooltip(self, event):
         if self.mark_tw:
@@ -95,14 +95,16 @@ class LaTeXEditor(ctk.CTkFrame):
 
     def update_colors(self):
         is_dark = ctk.get_appearance_mode() == "Dark"
+        idx = 1 if is_dark else 0
         tb = self._textbox
-        tb.tag_configure("command", foreground="#569cd6" if is_dark else "#0000ff")
-        tb.tag_configure("comment", foreground="#6a9955" if is_dark else "#008000")
-        tb.tag_configure("label", foreground="#ce9178" if is_dark else "#a31515")
-        tb.tag_configure("file_path", foreground="#dcdcaa" if is_dark else "#795e26")
-        tb.tag_configure("misspell", foreground="#ff6b6b" if is_dark else "#d32f2f", underline=True)
-        tb.tag_configure("find_highlight_all", background="#5c5c42" if is_dark else "#f2f2a4", foreground="black")
-        tb.tag_configure("find_highlight_current", background="#ffaa00" if is_dark else "#ffcc00", foreground="black")
+
+        tb.tag_configure("command", foreground=Colors.SYNTAX_CMD[idx])
+        tb.tag_configure("comment", foreground=Colors.SYNTAX_COMMENT[idx])
+        tb.tag_configure("label", foreground=Colors.SYNTAX_LABEL[idx])
+        tb.tag_configure("file_path", foreground=Colors.SYNTAX_FILE[idx])
+        tb.tag_configure("misspell", foreground=Colors.SYNTAX_ERROR[idx], underline=True)
+        tb.tag_configure("find_highlight_all", background=Colors.HIGHLIGHT_ALL[idx], foreground="black")
+        tb.tag_configure("find_highlight_current", background=Colors.HIGHLIGHT_CURRENT[idx], foreground="black")
 
     def apply_syntax_highlighting(self):
         for tag in ["command", "comment", "label", "file_path"]: self.tag_remove(tag, "1.0", "end")
@@ -192,7 +194,6 @@ class LaTeXEditor(ctk.CTkFrame):
         return "break"
 
     def clear_undo_history(self):
-        """BUG FIX 3: Limpa a pilha de 'Desfazer'."""
         try:
             self._textbox.edit_reset()
         except:

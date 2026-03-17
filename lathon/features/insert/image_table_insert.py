@@ -1,10 +1,11 @@
 import customtkinter as ctk
 from lathon.ui.widgets.base_modal import BaseModal
+from lathon.ui.design import Colors, Fonts
 
 class ImageTableInputDialog(BaseModal):
     def __init__(self, master_app):
         super().__init__(master_app, "Tabela de Figuras", 350, 330)
-        ctk.CTkLabel(self.border_frame, text="Tabela de Figuras", font=("Segoe UI", 14, "bold")).pack(pady=15)
+        ctk.CTkLabel(self.border_frame, text="Tabela de Figuras", font=Fonts.UI_TITLE).pack(pady=15)
 
         self.rows = self._create_input_row("Linhas:", "2", justify="center", label_width=110)
         self.img_size = self._create_input_row("Tam. Imagem (%):", "40", justify="center", label_width=110)

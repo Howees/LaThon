@@ -1,10 +1,13 @@
 import customtkinter as ctk
 from lathon.ui.widgets.base_modal import BaseModal
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts
+
 class LayoutConfigDialog(BaseModal):
     def __init__(self, master_app):
         super().__init__(master_app, "Configuração de Tela", 450, 300)
-        ctk.CTkLabel(self.border_frame, text="Configuração de Tela", font=("Segoe UI", 16, "bold")).pack(pady=15)
+        ctk.CTkLabel(self.border_frame, text="Configuração de Tela", font=Fonts.UI_TITLE).pack(pady=15)
 
         cfg = self.app.config.get_layout()
         self.left_val, self.center_val, self.pdf_val = cfg.get("left", 15), cfg.get("center", 50), cfg.get("pdf", 35)
@@ -13,12 +16,12 @@ class LayoutConfigDialog(BaseModal):
         self.slider_center = self._create_row("Editor", self.center_val, 'center')
         self.slider_pdf = self._create_row("PDF", self.pdf_val, 'pdf')
 
-        self.lbl_total = ctk.CTkLabel(self.border_frame, text="", font=("Segoe UI", 13, "bold"))
+        self.lbl_total = ctk.CTkLabel(self.border_frame, text="", font=Fonts.UI_BOLD)
         self.lbl_total.pack(pady=10)
 
         btn_f = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         btn_f.pack(pady=10)
-        ctk.CTkButton(btn_f, text="Cancelar", width=80, fg_color="transparent", border_width=1, text_color=("black", "white"), command=self._close_dialog).pack(side="left", padx=5)
+        ctk.CTkButton(btn_f, text="Cancelar", width=80, fg_color="transparent", border_width=1, text_color=Colors.TEXT_NORMAL, command=self._close_dialog).pack(side="left", padx=5)
         ctk.CTkButton(btn_f, text="Salvar e Aplicar", width=140, command=self._apply).pack(side="left", padx=5)
         self._update_labels()
 
@@ -60,7 +63,7 @@ class LayoutConfigDialog(BaseModal):
         self.lbl_left.configure(text=f"Arquivos ({self.left_val}%)")
         self.lbl_center.configure(text=f"Editor ({self.center_val}%)")
         self.lbl_pdf.configure(text=f"PDF ({self.pdf_val}%)")
-        self.lbl_total.configure(text="Total: 100% (Ajuste Automático)", text_color="#2ea043")
+        self.lbl_total.configure(text="Total: 100% (Ajuste Automático)", text_color=Colors.LA)
 
     def _apply(self):
         self.app.apply_layout_weights(self.left_val, self.center_val, self.pdf_val)

@@ -6,24 +6,12 @@ import tkinter as tk
 import tkinter.ttk as ttk
 from tkinter import filedialog, messagebox
 import customtkinter as ctk
-from PIL import Image, ImageTk
 
 from lathon.ui.widgets.modern_menu import ModernMenu
 from lathon.ui.widgets.fixed_input import FixedInputDialog
 
-import sys
-
-
-def resource_path(relative_path):
-    """ Encontra o caminho dos arquivos dentro do EXE ou em modo Dev """
-    try:
-        # O PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.abspath(".")
-
-    # Forçamos a conversão para str para eliminar o aviso do editor
-    return str(os.path.join(base_path, relative_path))
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts, Icons
 
 IGNORED_EXTENSIONS = {".aux", ".log", ".out", ".toc", ".lof", ".lot", ".bbl", ".blg", ".bak", ".nav", ".snm", ".vrb",
                       ".gz", ".synctex.gz", ".fls", ".fdb_latexmk", ".xml", ".run.xml", ".msc", ".glo", ".idx", ".ist",
@@ -35,7 +23,7 @@ class FilePanel(ctk.CTkFrame):
     """Componente Visual: O Painel Esquerdo que gerencia os arquivos do projeto."""
 
     def __init__(self, master, app, **kwargs):
-        super().__init__(master, fg_color=("gray95", "#252526"), corner_radius=0, **kwargs)
+        super().__init__(master, fg_color=Colors.BG_SIDEBAR, corner_radius=0, **kwargs)
         self.app = app
 
         # --- CONSTRUÇÃO DA INTERFACE ---
@@ -45,13 +33,12 @@ class FilePanel(ctk.CTkFrame):
         self.tree = ttk.Treeview(self, show="tree headings")
         self.tree.grid(row=0, column=0, sticky="nsew")
 
-        outline_header = ctk.CTkFrame(self, height=25, fg_color=("gray85", "#333333"), corner_radius=0)
+        outline_header = ctk.CTkFrame(self, height=25, fg_color=Colors.BORDER, corner_radius=0)
         outline_header.grid(row=1, column=0, sticky="ew")
         ctk.CTkLabel(outline_header, text="ESTRUTURA", font=("Segoe UI", 11, "bold"),
-                     text_color=("gray30", "gray60")).pack(side="left", padx=5)
+                     text_color=Colors.TEXT_MUTED).pack(side="left", padx=5)
 
-        scroll_conf = {"scrollbar_button_color": ("#bfbfbf", "#7a7a7a"),
-                       "scrollbar_button_hover_color": ("#a6a6a6", "#a0a0a0")}
+        scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN, "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
         self.outline_frame = ctk.CTkScrollableFrame(self, label_text="", fg_color="transparent", **scroll_conf)
         self.outline_frame.grid(row=2, column=0, sticky="nsew")
 
@@ -61,8 +48,6 @@ class FilePanel(ctk.CTkFrame):
         self.path_map = {}
         self.rename_entry = None
         self.rename_item_id = None
-        self.image_references = []
-        self._load_icons()
 
         self.tree.configure(columns=("options",), displaycolumns=("options",))
         self.tree.column("#0", width=220, anchor="w")
@@ -84,31 +69,6 @@ class FilePanel(ctk.CTkFrame):
             if self._resize_timer: self.app.after_cancel(self._resize_timer)
             self._resize_timer = self.app.after(150, self.update_file_outline)
 
-    def _load_icons(self):
-        self.image_references = []
-        ICON_MAP = {
-            'root': {'file': 'icones/project_root.png', 'color': '#008CBA'},
-            'folder': {'file': 'icones/folder.png', 'color': '#FFD700'},
-            'folder_empty': {'file': 'icones/folder_empty.png', 'color': '#E0E0E0'},
-            'tex': {'file': 'icones/tex.png', 'color': '#E65100'},
-            'bib': {'file': 'icones/bib.png', 'color': '#1E88E5'},
-            'image': {'file': 'icones/image.png', 'color': '#4CAF50'},
-            'file': {'file': 'icones/file.png', 'color': '#9E9E9E'}
-        }
-        size = (18, 18)
-        for name, data in ICON_MAP.items():
-            icon_path = Path(resource_path(data['file']))
-            icon_attr = f"{name}_icon"
-            try:
-                pil_img = Image.open(icon_path).resize(size,
-                                                       Image.Resampling.LANCZOS) if icon_path.exists() else Image.new(
-                    'RGB', size, color=data['color'])
-                photo_img = ImageTk.PhotoImage(pil_img)
-                setattr(self, icon_attr, photo_img)
-                self.image_references.append(photo_img)
-            except:
-                setattr(self, icon_attr, None)
-
     def populate_tree(self):
         self._cancel_inline_rename()
         for i in self.tree.get_children(): self.tree.delete(i)
@@ -128,27 +88,29 @@ class FilePanel(ctk.CTkFrame):
                 return
 
             for p in items:
-                icon = self.file_icon
+                icon = Icons.get_treeview_icon("file.png")
                 is_folder = p.is_dir()
                 if is_folder:
-                    icon = self.folder_icon if any(
-                        x for x in p.iterdir() if x.name not in IGNORED_NAMES) else self.folder_empty_icon
+                    has_files = any(x for x in p.iterdir() if x.name not in IGNORED_NAMES)
+                    icon = Icons.get_treeview_icon("folder.png") if has_files else Icons.get_treeview_icon(
+                        "folder_empty.png")
                 elif p.is_file():
                     ext = p.suffix.lower()
                     if ext in [".tex", ".txt"]:
-                        icon = self.tex_icon
+                        icon = Icons.get_treeview_icon("tex.png")
                     elif ext == ".bib":
-                        icon = self.bib_icon
+                        icon = Icons.get_treeview_icon("bib.png")
                     elif ext in [".png", ".jpg", ".jpeg", ".pdf"]:
-                        icon = self.image_icon
+                        icon = Icons.get_treeview_icon("image.png")
 
                 oid = self.tree.insert(parent_id, "end", text=p.name, open=False, image=icon if icon else '',
                                        values=("⋮" if is_folder else "",))
                 self.path_map[oid] = p
                 if is_folder: _walk_dir(oid, p)
 
+        root_icon = Icons.get_treeview_icon("project_root.png")
         root_oid = self.tree.insert("", "end", text=self.app.project_dir.name, open=True,
-                                    image=self.root_icon if self.root_icon else '', values=("⋮",))
+                                    image=root_icon if root_icon else '', values=("⋮",))
         self.path_map[root_oid] = self.app.project_dir
         _walk_dir(root_oid, self.app.project_dir)
 
@@ -210,7 +172,7 @@ class FilePanel(ctk.CTkFrame):
             if path != self.app.project_dir:
                 self.context_menu.add_command("✏ Renomear", lambda: self.start_inline_rename(item_id))
                 self.context_menu.add_command("❌ Excluir", lambda: self.delete_item(item_id, path),
-                                              text_color="#ff5555", hover_color="#502020")
+                                              text_color=Colors.BTN_DANGER, hover_color=Colors.BTN_DANGER_HOVER)
 
         self.context_menu.popup(event.x_root, event.y_root)
 
@@ -225,7 +187,7 @@ class FilePanel(ctk.CTkFrame):
             return
         if h == 0: return
 
-        self.rename_entry = ctk.CTkEntry(self.tree, height=h, width=w, font=("Segoe UI", 13))
+        self.rename_entry = ctk.CTkEntry(self.tree, height=h, width=w, font=Fonts.UI)
         self.rename_entry.place(x=x, y=y)
         self.rename_entry.insert(0, path.name)
         self.rename_entry.select_range(0, 'end')
@@ -331,7 +293,7 @@ class FilePanel(ctk.CTkFrame):
             disp = title[:max_chars - 3] + "..." if len(title) > max_chars else title
 
             btn = ctk.CTkButton(self.outline_frame, text=disp, anchor="w", fg_color="transparent",
-                                text_color=("gray10", "gray90"), hover_color=("gray80", "gray25"),
+                                text_color=Colors.TEXT_NORMAL, hover_color=Colors.BTN_HOVER,
                                 command=lambda l=line: self.on_outline_click(l))
             btn.pack(anchor="w", padx=(indent, 0), pady=1, fill="x")
 
@@ -344,10 +306,18 @@ class FilePanel(ctk.CTkFrame):
     def style_treeview(self):
         style = ttk.Style(self)
         is_dark = ctk.get_appearance_mode() == "Dark"
-        bg, fg, sel_bg, h_bg, h_fg = ("#252526", "white", "#37373d", "#333333", "gray") if is_dark else (
-        "#f3f3f3", "black", "#cce8ff", "#e1e1e1", "black")
+
+        bg = Colors.BG_SIDEBAR[1] if is_dark else Colors.BG_SIDEBAR[0]
+        fg = Colors.TEXT_NORMAL[1] if is_dark else Colors.TEXT_NORMAL[0]
+        sel_bg = "#37373d" if is_dark else "#cce8ff"
+        h_bg = Colors.BG_PANEL[1] if is_dark else Colors.BG_PANEL[0]
+
         style.theme_use("clam")
         style.configure("Treeview", background=bg, foreground=fg, fieldbackground=bg, borderwidth=0, rowheight=24,
-                        font=("Segoe UI", 10))
+                        font=Fonts.UI)
         style.map("Treeview", background=[("selected", sel_bg)], foreground=[("selected", fg)])
-        style.configure("Treeview.Heading", background=h_bg, foreground=h_fg, relief="flat")
+
+        # Configura a aparência normal do cabeçalho
+        style.configure("Treeview.Heading", background=h_bg, foreground=fg, relief="flat")
+        # MATA o efeito de hover forçando a cor 'active' a ser igual a cor normal
+        style.map("Treeview.Heading", background=[("active", h_bg)])

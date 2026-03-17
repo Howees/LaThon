@@ -1,6 +1,9 @@
 import re
 from spellchecker import SpellChecker
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors
+
 class SpellCheckHandler:
     def __init__(self, app, editor):
         self.is_active = True
@@ -80,7 +83,6 @@ class SpellCheckHandler:
         try: self.editor.tag_remove("misspell", "1.0", "end")
         except: pass
 
-    # --- MOVido DO CONTEXT_MENU.PY ---
     def build_context_options(self, context_menu, index):
         if not self.spell_checkers: return
 
@@ -100,8 +102,8 @@ class SpellCheckHandler:
         if word:
             self.editor.mark_set("insert", start_str)
             if "misspell" in self.editor.tag_names(start_str):
-                context_menu.add_command(f"➕ Adicionar '{word}' ao Dicionário", lambda w=word: self.add_to_personal_dict(w), text_color=("#2ea043", "#55ff55"))
-                context_menu.add_command(f"👁️ Ignorar '{word}'", lambda w=word: self.ignore_session(w))
+                context_menu.add_command(f"Adicionar '{word}' ao Dicionário", lambda w=word: self.add_to_personal_dict(w), text_color=Colors.LA)
+                context_menu.add_command(f"Ignorar '{word}'", lambda w=word: self.ignore_session(w))
                 context_menu.add_separator()
 
                 sugs = set()
@@ -117,4 +119,4 @@ class SpellCheckHandler:
                 if final_sugs:
                     for s in final_sugs: context_menu.add_command(f"Substituir por: '{s}'", lambda x=s, st=start_str, en=end_str: self.replace_word(x, st, en))
                 else:
-                    context_menu.add_command("(Sem sugestões ortográficas)", None, text_color="gray")
+                    context_menu.add_command("(Sem sugestões ortográficas)", None, text_color=Colors.TEXT_MUTED)

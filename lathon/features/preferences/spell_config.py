@@ -2,6 +2,9 @@ import customtkinter as ctk
 import tkinter as tk
 from lathon.ui.widgets.base_modal import BaseModal
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts
+
 AVAILABLE_LANGUAGES = {"pt": "Português", "en": "Inglês", "es": "Espanhol", "fr": "Francês", "de": "Alemão",
                        "ru": "Russo", "ar": "Árabe"}
 
@@ -11,9 +14,7 @@ class SpellConfigDialog(BaseModal):
         super().__init__(master_app, "Configurações de Ortografia", 450, 480)
         self.spell_checker = spell_checker
 
-        ctk.CTkLabel(self.border_frame, text="Idiomas do Corretor", font=("Segoe UI", 12, "bold")).pack(anchor="w",
-                                                                                                        padx=30,
-                                                                                                        pady=(20, 0))
+        ctk.CTkLabel(self.border_frame, text="Idiomas do Corretor", font=Fonts.UI_BOLD).pack(anchor="w", padx=30, pady=(20, 0))
         f1 = ctk.CTkScrollableFrame(self.border_frame, height=120, fg_color="transparent")
         f1.pack(fill="x", padx=30, pady=5)
 
@@ -25,16 +26,17 @@ class SpellConfigDialog(BaseModal):
             ctk.CTkCheckBox(f1, text=n, variable=var, onvalue="on", offvalue="off", command=self._on_lang_change).pack(
                 anchor="w", pady=2)
 
-        ctk.CTkFrame(self.border_frame, height=2, fg_color=("gray80", "#333333")).pack(fill="x", padx=20, pady=10)
-        ctk.CTkLabel(self.border_frame, text="Dicionário Pessoal", font=("Segoe UI", 12, "bold")).pack(anchor="w",
-                                                                                                       padx=30)
+        ctk.CTkFrame(self.border_frame, height=2, fg_color=Colors.BORDER).pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(self.border_frame, text="Dicionário Pessoal", font=Fonts.UI_BOLD).pack(anchor="w", padx=30)
 
         f2 = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         f2.pack(fill="both", expand=True, padx=30, pady=5)
 
         is_dark = ctk.get_appearance_mode() == "Dark"
-        self.words_listbox = tk.Listbox(f2, bd=0, highlightthickness=0, bg="#1e1e1e" if is_dark else "#f0f0f0",
-                                        fg="white" if is_dark else "black", font=("Segoe UI", 11))
+        bg_color = Colors.BG_PANEL[1] if is_dark else "#f0f0f0"
+        fg_color = Colors.TEXT_NORMAL[1] if is_dark else Colors.TEXT_NORMAL[0]
+
+        self.words_listbox = tk.Listbox(f2, bd=0, highlightthickness=0, bg=bg_color, fg=fg_color, font=Fonts.UI)
         self.words_listbox.pack(fill="both", expand=True, pady=5)
         self._refresh_listbox()
 
@@ -43,10 +45,9 @@ class SpellConfigDialog(BaseModal):
         self.new_word_entry = ctk.CTkEntry(btn_f, placeholder_text="Nova palavra...")
         self.new_word_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
         ctk.CTkButton(btn_f, text="+", width=30, command=self._add_manual_word).pack(side="left")
-        ctk.CTkButton(btn_f, text="Remover", fg_color="#cf222e", hover_color="#8b0000", width=80,
+        ctk.CTkButton(btn_f, text="Remover", fg_color=Colors.BTN_DANGER, hover_color=Colors.BTN_DANGER_HOVER, width=80,
                       command=self._remove_word).pack(side="right", padx=(5, 0))
 
-        # Como o BaseModal exige um botão de fechar, vamos adicionar um.
         self._create_action_buttons("Fechar", self._close_dialog)
 
     def _on_lang_change(self):

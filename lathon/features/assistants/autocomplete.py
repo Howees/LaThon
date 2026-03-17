@@ -3,6 +3,9 @@ import customtkinter as ctk
 import re
 from pathlib import Path
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors, Fonts
+
 SNIPPETS = {
     "figure": "\\begin{figure}[h]\n\t\\centering\n\t\\includegraphics[width=0.8\\textwidth]{}\n\t\\caption{Titulo}\n\t\\label{fig:}\n\\end{figure}",
     "table": "\\begin{table}[h]\n\t\\centering\n\t\\begin{tabular}{|c|c|}\n\t\t\\hline\n\t\tA & B \\\\\n\t\t\\hline\n\t\\end{tabular}\n\t\\caption{Titulo}\n\t\\label{tab:}\n\\end{table}",
@@ -39,20 +42,14 @@ class AutocompleteHandler:
         self.editor.bind("<Up>", self._move_selection, add="+")
         self.editor.bind("<Down>", self._move_selection, add="+")
         self.editor.bind("<Escape>", self._hide_suggestions, add="+")
-
-        # --- NOVAS BLINDAGENS DE UX ---
-        # 1. Clicou no editor (em qualquer lugar)? Some na hora!
         self.editor.bind("<Button-1>", self._hide_suggestions, add="+")
-        # 2. Saiu do editor (Alt+Tab, clicou na árvore, clicou fora)? Some na hora!
         self.editor.bind("<FocusOut>", self._on_focus_out, add="+")
 
     def _on_focus_out(self, event=None):
-        # Um pequeno delay (50ms) garante que o Tkinter saiba exatamente para onde o mouse foi
         self.app.after(50, self._check_focus_and_hide)
 
     def _check_focus_and_hide(self):
         current_focus = self.app.focus_get()
-        # Se o foco atual NÃO for a própria listinha de sugestões, mate a janela!
         if current_focus != self.suggestions_listbox:
             self._hide_suggestions()
 
@@ -68,8 +65,7 @@ class AutocompleteHandler:
                     try:
                         content = p.read_text(encoding="utf-8", errors="ignore")
                         labels.extend(re.findall(r'\\label\s*\{(.*?)\}', content))
-                    except:
-                        pass
+                    except: pass
 
         for bib in bib_files:
             try:
@@ -77,23 +73,19 @@ class AutocompleteHandler:
                 if path.exists():
                     c = path.read_text(encoding="utf-8", errors="ignore")
                     cite_labels.extend(re.findall(r'@[a-zA-Z]+\s*\{\s*([^,\s]+)', c))
-            except:
-                pass
+            except: pass
 
         return sorted(list(set(labels))), sorted(files), sorted(list(set(cite_labels))), sorted(bib_files)
 
     def _on_key_release(self, event):
         if not self.is_active: return
-        # Retirei as setas 'Left' e 'Right' da lista de ignorados.
-        # Se o usuário andar para o lado, o balão some!
         if event.keysym in ('Return', 'Tab', 'Escape', 'Up', 'Down'): return
 
         text_content = self.editor.get("1.0", "insert")
         cursor_pos = len(text_content)
         word_start = cursor_pos
 
-        while word_start > 0 and (
-                text_content[word_start - 1].isalnum() or text_content[word_start - 1] in "\\_{}:/.-"):
+        while word_start > 0 and (text_content[word_start - 1].isalnum() or text_content[word_start - 1] in "\\_{}:/.-"):
             word_start -= 1
 
         current_word = text_content[word_start:cursor_pos]
@@ -113,18 +105,13 @@ class AutocompleteHandler:
                 self.start_index = f"1.0 + {last_brace + 1} chars"
                 labels, files, cites, bibs = self._get_project_data()
 
-                if cmd in ['ref', 'eqref']:
-                    suggestions = [x for x in labels if x.startswith(content_inside)]
-                elif cmd in ['includegraphics', 'input']:
-                    suggestions = [x for x in files if x.startswith(content_inside)]
-                elif cmd == 'cite':
-                    suggestions = [x for x in cites if x.startswith(content_inside)]
-                elif cmd == 'bibliography':
-                    suggestions = [x for x in bibs if x.startswith(content_inside)]
+                if cmd in ['ref', 'eqref']: suggestions = [x for x in labels if x.startswith(content_inside)]
+                elif cmd in ['includegraphics', 'input']: suggestions = [x for x in files if x.startswith(content_inside)]
+                elif cmd == 'cite': suggestions = [x for x in cites if x.startswith(content_inside)]
+                elif cmd == 'bibliography': suggestions = [x for x in bibs if x.startswith(content_inside)]
                 self.suggestion_type = 'context'
 
-        elif not self.suggestion_type and current_word and current_word in [k[:len(current_word)] for k in
-                                                                            SNIPPETS.keys()]:
+        elif not self.suggestion_type and current_word and current_word in [k[:len(current_word)] for k in SNIPPETS.keys()]:
             suggestions = [k for k in SNIPPETS.keys() if k.startswith(current_word)]
             self.suggestion_type = 'snippet'
 
@@ -132,30 +119,26 @@ class AutocompleteHandler:
             suggestions = [cmd for cmd in LATEX_COMMANDS if cmd.startswith(current_word)]
             self.suggestion_type = 'command'
 
-        if suggestions:
-            self._show_suggestions_popup(suggestions)
-        else:
-            self._hide_suggestions()
+        if suggestions: self._show_suggestions_popup(suggestions)
+        else: self._hide_suggestions()
 
     def _show_suggestions_popup(self, suggestions):
         is_dark = ctk.get_appearance_mode() == "Dark"
-        bg_col = "#2b2b2b" if is_dark else "#f0f0f0"
-        fg_col = "white" if is_dark else "black"
-        sel_col = "#007acc" if is_dark else "#005a9e"
+        idx = 1 if is_dark else 0
+        bg_col = Colors.BG_PANEL[idx]
+        fg_col = Colors.TEXT_NORMAL[idx]
 
         if not self.autocomplete_window:
             self.autocomplete_window = tk.Toplevel(self.app)
             self.autocomplete_window.wm_overrideredirect(True)
             self.autocomplete_window.transient(self.app)
 
-            self.suggestions_listbox = tk.Listbox(self.autocomplete_window, height=5, font=("Consolas", 11),
-                                                  bg=bg_col, fg=fg_col, selectbackground=sel_col, highlightthickness=0)
+            self.suggestions_listbox = tk.Listbox(self.autocomplete_window, height=5, font=Fonts.MONO,
+                                                  bg=bg_col, fg=fg_col, selectbackground=Colors.THON, highlightthickness=0)
             self.suggestions_listbox.pack(fill="both", expand=True)
-
-            # Clicar na própria listinha executa a sugestão
             self.suggestions_listbox.bind("<Button-1>", self._select_suggestion)
         else:
-            self.suggestions_listbox.config(bg=bg_col, fg=fg_col, selectbackground=sel_col)
+            self.suggestions_listbox.config(bg=bg_col, fg=fg_col, selectbackground=Colors.THON)
 
         self.suggestions_listbox.delete(0, tk.END)
         for s in suggestions: self.suggestions_listbox.insert(tk.END, s)
@@ -172,8 +155,7 @@ class AutocompleteHandler:
             self._hide_suggestions()
 
     def _hide_suggestions(self, event=None):
-        if self.autocomplete_window:
-            self.autocomplete_window.withdraw()
+        if self.autocomplete_window: self.autocomplete_window.withdraw()
 
     def _select_suggestion(self, event=None):
         if not self.autocomplete_window or self.autocomplete_window.state() == "withdrawn": return
@@ -183,8 +165,7 @@ class AutocompleteHandler:
 
         self.editor.delete(self.start_index, "insert")
 
-        if self.suggestion_type == 'snippet':
-            self.editor.insert(self.start_index, SNIPPETS[text])
+        if self.suggestion_type == 'snippet': self.editor.insert(self.start_index, SNIPPETS[text])
         else:
             self.editor.insert(self.start_index, text)
             if "{}" in text: self.editor.mark_set("insert", "insert -1 chars")
@@ -198,10 +179,8 @@ class AutocompleteHandler:
         if not cur: return
         idx = cur[0]
 
-        if event.keysym == "Down":
-            idx = min(idx + 1, self.suggestions_listbox.size() - 1)
-        else:
-            idx = max(idx - 1, 0)
+        if event.keysym == "Down": idx = min(idx + 1, self.suggestions_listbox.size() - 1)
+        else: idx = max(idx - 1, 0)
 
         self.suggestions_listbox.selection_clear(0, tk.END)
         self.suggestions_listbox.selection_set(idx)

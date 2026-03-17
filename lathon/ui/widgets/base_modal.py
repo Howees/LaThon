@@ -1,5 +1,8 @@
 import customtkinter as ctk
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors
+
 
 class BaseModal(ctk.CTkToplevel):
     def __init__(self, master_app, title, width, height):
@@ -8,7 +11,9 @@ class BaseModal(ctk.CTkToplevel):
         self.title(title)
         self.withdraw()
         if master_app: self.transient(master_app)
-        self.configure(fg_color=("white", "#2b2b2b"))
+
+        # Consome as cores de fundo do Painel Principal
+        self.configure(fg_color=Colors.BG_PANEL)
 
         self.border_frame = ctk.CTkFrame(self, fg_color="transparent", border_width=0)
         self.border_frame.pack(fill="both", expand=True)
@@ -39,7 +44,7 @@ class BaseModal(ctk.CTkToplevel):
         ctk.CTkLabel(f, text=text, width=label_width, anchor="e").pack(side="left")
 
         if prefix:
-            ctk.CTkLabel(f, text=prefix, text_color="gray50").pack(side="left", padx=(10, 2))
+            ctk.CTkLabel(f, text=prefix, text_color=Colors.TEXT_MUTED).pack(side="left", padx=(10, 2))
 
         entry = ctk.CTkEntry(f, justify=justify)
         entry.pack(side="left", fill="x", expand=True, padx=(0, 10) if prefix else 10)
@@ -54,5 +59,5 @@ class BaseModal(ctk.CTkToplevel):
         btn_f = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         btn_f.pack(pady=20)
         ctk.CTkButton(btn_f, text="Cancelar", width=80, fg_color="transparent", border_width=1,
-                      text_color=("black", "white"), command=self._close_dialog).pack(side="left", padx=5)
+                      text_color=Colors.TEXT_NORMAL, command=self._close_dialog).pack(side="left", padx=5)
         ctk.CTkButton(btn_f, text=confirm_text, width=80, command=confirm_command).pack(side="left", padx=5)

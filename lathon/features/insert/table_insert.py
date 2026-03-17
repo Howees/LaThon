@@ -1,10 +1,11 @@
 import customtkinter as ctk
 from lathon.ui.widgets.base_modal import BaseModal
+from lathon.ui.design import Colors, Fonts
 
 class TableInputDialog(BaseModal):
     def __init__(self, master_app):
         super().__init__(master_app, "Inserir Tabela", 350, 330)
-        ctk.CTkLabel(self.border_frame, text="Inserir Tabela", font=("Segoe UI", 14, "bold")).pack(pady=15)
+        ctk.CTkLabel(self.border_frame, text="Inserir Tabela", font=Fonts.UI_TITLE).pack(pady=15)
 
         self.rows = self._create_input_row("Linhas:", "3", justify="center")
         self.cols = self._create_input_row("Colunas:", "3", justify="center")

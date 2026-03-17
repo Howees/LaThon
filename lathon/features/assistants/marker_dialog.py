@@ -1,6 +1,8 @@
 import customtkinter as ctk
 from lathon.ui.widgets.base_modal import BaseModal
 
+# --- DESIGN SYSTEM ---
+from lathon.ui.design import Colors
 
 class MarkerDialog(BaseModal):
     """Nova janela focada em inserir comentários com seletor visual de cor."""
@@ -8,15 +10,13 @@ class MarkerDialog(BaseModal):
     def __init__(self, master_app):
         super().__init__(master_app, "Marcação de Texto", 350, 220)
 
-        ctk.CTkLabel(self.border_frame, text="Adicione um comentário (ou deixe em branco):",
-                     text_color=("gray20", "gray80")).pack(pady=(15, 5))
-        self.entry = ctk.CTkEntry(self.border_frame, width=280, fg_color=("gray95", "#343638"),
-                                  text_color=("black", "white"))
+        ctk.CTkLabel(self.border_frame, text="Adicione um comentário (ou deixe em branco):", text_color=Colors.TEXT_NORMAL).pack(pady=(15, 5))
+        self.entry = ctk.CTkEntry(self.border_frame, width=280, fg_color=Colors.BG_MAIN, text_color=Colors.TEXT_NORMAL)
         self.entry.pack(pady=5)
         self.entry.focus_set()
 
         self.entry.bind("<Return>", self._on_ok)
-        self.entry.bind("<Escape>", self._on_cancel)  # A tecla ESC chama a função abaixo!
+        self.entry.bind("<Escape>", self._on_cancel)
 
         # Seletor de Cores
         color_frame = ctk.CTkFrame(self.border_frame, fg_color="transparent")
@@ -45,7 +45,6 @@ class MarkerDialog(BaseModal):
         self.result = (self.selected_color.get(), self.entry.get())
         self._close_dialog()
 
-    # ---> A FUNÇÃO QUE FALTAVA! <---
     def _on_cancel(self, event=None):
         self.result = None
         self._close_dialog()

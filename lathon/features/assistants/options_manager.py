@@ -1,5 +1,5 @@
 from lathon.features.assistants.theme_manager import ThemeManager
-from lathon.ui.widgets.markers_list_dialog import MarkersListDialog
+from lathon.features.assistants.markers_list_dialog import MarkersListDialog
 
 class OptionsManager:
     """

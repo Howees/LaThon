@@ -1,6 +1,6 @@
 import customtkinter as ctk
 from lathon.ui.widgets.base_modal import BaseModal
-
+from lathon.ui.design import Colors, Fonts
 
 class FormulaInputDialog(BaseModal):
     def __init__(self, master_app):
@@ -14,12 +14,12 @@ class FormulaInputDialog(BaseModal):
         top_bar.grid(row=0, column=0, sticky="ew", padx=15, pady=(15, 5))
         self.display_mode = ctk.StringVar(value="block")
         ctk.CTkRadioButton(top_bar, text="Bloco Numerado (Equação)", variable=self.display_mode, value="block",
-                           font=("Segoe UI", 12, "bold")).pack(side="left", padx=10)
+                           font=Fonts.UI_BOLD).pack(side="left", padx=10)
         ctk.CTkRadioButton(top_bar, text="Na mesma linha ($...$)", variable=self.display_mode, value="inline",
-                           font=("Segoe UI", 12, "bold")).pack(side="left", padx=10)
+                           font=Fonts.UI_BOLD).pack(side="left", padx=10)
 
         self.editor = ctk.CTkTextbox(self.border_frame, font=("Consolas", 16), height=100,
-                                     fg_color=("gray95", "#1e1e1e"), border_width=1, border_color=("gray70", "#454545"))
+                                     fg_color=Colors.BG_MAIN, border_width=1, border_color=Colors.BORDER)
         self.editor.grid(row=1, column=0, sticky="nsew", padx=15, pady=10)
         self.editor.insert("1.0", "% Monte sua fórmula aqui...\n")
 
@@ -48,15 +48,15 @@ class FormulaInputDialog(BaseModal):
         btn_f = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         btn_f.grid(row=3, column=0, sticky="e", padx=15, pady=(0, 15))
         ctk.CTkButton(btn_f, text="Cancelar", width=100, fg_color="transparent", border_width=1,
-                      text_color=("black", "white"), command=self._close_dialog).pack(side="left", padx=5)
-        ctk.CTkButton(btn_f, text="✔ Inserir", width=140, fg_color="#238636", hover_color="#2ea043",
+                      text_color=Colors.TEXT_NORMAL, command=self._close_dialog).pack(side="left", padx=5)
+        ctk.CTkButton(btn_f, text="✔ Inserir", width=140, fg_color=Colors.BTN_PRIMARY, hover_color=Colors.BTN_PRIMARY_HOVER,
                       command=self._on_ok).pack(side="left", padx=5)
 
     def _build_grid(self, parent_tab, button_data):
         row, col = 0, 0
         for label, snippet in button_data:
-            btn = ctk.CTkButton(parent_tab, text=label, height=35, fg_color=("gray85", "#333333"),
-                                hover_color=("gray75", "#454545"), text_color=("black", "white"), font=("Segoe UI", 12),
+            btn = ctk.CTkButton(parent_tab, text=label, height=35, fg_color=Colors.BG_MAIN,
+                                hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL, font=Fonts.UI,
                                 command=lambda s=snippet: self._insert_snippet(s))
             btn.grid(row=row, column=col, padx=4, pady=4, sticky="ew")
             parent_tab.grid_columnconfigure(col, weight=1)
