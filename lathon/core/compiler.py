@@ -44,7 +44,6 @@ class CompilerThread(Thread):
         self.is_cancelled = True
         if self.process:
             try:
-                # O /T mata a "árvore" toda (o .bat e o pdflatex.exe filho)
                 subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.process.pid)],
                                creationflags=subprocess.CREATE_NO_WINDOW)
             except:
@@ -54,34 +53,34 @@ class CompilerThread(Thread):
                     pass
 
     def log(self, message):
-        # Só manda pro terminal se não tiver sido cancelado
         if not self.is_cancelled:
             self.queue.put(message)
 
     def run(self):
         bib_files_exist = any(self.project_dir.glob("*.bib"))
 
+        # ADICIONADO: -synctex=1 para gerar o mapa de sincronização
         if bib_files_exist:
             bat_content = f'''
                 @echo off
                 cd /d "{self.project_dir}"
                 echo "___STATUS:1:4:Gerando estrutura inicial (PDFLaTeX)..."
-                "{self.compiler_path}" -interaction=nonstopmode "{self.tex_file_name_no_ext}"
+                "{self.compiler_path}" -synctex=1 -interaction=nonstopmode "{self.tex_file_name_no_ext}"
                 echo "___STATUS:2:4:Processando bibliografia (BibTeX)..."
                 bibtex "{self.tex_file_name_no_ext}"
                 echo "___STATUS:3:4:Integrando referencias (PDFLaTeX)..."
-                "{self.compiler_path}" -interaction=nonstopmode "{self.tex_file_name_no_ext}"
+                "{self.compiler_path}" -synctex=1 -interaction=nonstopmode "{self.tex_file_name_no_ext}"
                 echo "___STATUS:4:4:Finalizando documento (PDFLaTeX)..."
-                "{self.compiler_path}" -interaction=nonstopmode "{self.tex_file_name_no_ext}"
+                "{self.compiler_path}" -synctex=1 -interaction=nonstopmode "{self.tex_file_name_no_ext}"
             '''
         else:
             bat_content = f'''
                 @echo off
                 cd /d "{self.project_dir}"
                 echo "___STATUS:1:2:Compilacao inicial..."
-                "{self.compiler_path}" -interaction=nonstopmode "{self.tex_file_name_no_ext}"
+                "{self.compiler_path}" -synctex=1 -interaction=nonstopmode "{self.tex_file_name_no_ext}"
                 echo "___STATUS:2:2:Finalizando documento..."
-                "{self.compiler_path}" -interaction=nonstopmode "{self.tex_file_name_no_ext}"
+                "{self.compiler_path}" -synctex=1 -interaction=nonstopmode "{self.tex_file_name_no_ext}"
             '''
 
         runner_bat_path = self.project_dir / "run_compiler.bat"
@@ -106,7 +105,6 @@ class CompilerThread(Thread):
             creationflags = subprocess.CREATE_NO_WINDOW
 
         try:
-            # ---> SALVAMOS O PROCESSO EM SELF.PROCESS <---
             self.process = subprocess.Popen(
                 [str(runner_bat_path)],
                 stdout=subprocess.PIPE,
@@ -123,7 +121,6 @@ class CompilerThread(Thread):
             download_message_sent = False
 
             for line in iter(self.process.stdout.readline, ''):
-                # Se o usuário clicou em Voltar, paramos de ler imediatamente
                 if self.is_cancelled:
                     break
 
@@ -162,7 +159,6 @@ class CompilerThread(Thread):
                 self.queue.put(("finished", False))
             return
 
-        # Verifica o resultado final só se não foi cancelado
         if not self.is_cancelled:
             pdf_path = self.project_dir / Path(self.tex_file_name_no_ext).with_suffix(".pdf")
             success = pdf_path.exists() and pdf_path.stat().st_size > 0

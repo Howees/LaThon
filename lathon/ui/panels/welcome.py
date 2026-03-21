@@ -7,8 +7,10 @@ from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo
 from lathon.ui.panels.repo_panel import RepoPanel
 from lathon.ui.panels.project_panel import ProjectPanel
 
+
 class WelcomeScreen(ctk.CTkFrame):
-    """Atua apenas como ROTEADOR. Decide qual das 3 telas carregar."""
+    """Atua como ROTEADOR e tela de SETUP inicial."""
+
     def __init__(self, parent, app):
         super().__init__(parent, fg_color=Colors.BG_MAIN)
         self.app = app
@@ -21,7 +23,7 @@ class WelcomeScreen(ctk.CTkFrame):
 
         root_path = self.app.config.get_root_path()
         if not root_path or not os.path.exists(root_path):
-            SetupPanel(self, self.app, self.manager).pack(fill="both", expand=True)
+            self._render_setup_panel()
             return
 
         last_ws = self.app.config.get_last_workspace()
@@ -32,22 +34,21 @@ class WelcomeScreen(ctk.CTkFrame):
 
         RepoPanel(self, self.app, Path(root_path), self.manager).pack(fill="both", expand=True)
 
-
-# ==========================================
-# TELA 1: CONFIGURAÇÃO INICIAL (SETUP)
-# ==========================================
-class SetupPanel(ctk.CTkFrame):
-    def __init__(self, parent, app, manager):
-        super().__init__(parent, fg_color="transparent")
+    def _render_setup_panel(self):
+        """Renderiza a tela de configuração inicial direto na WelcomeScreen."""
         container = ctk.CTkFrame(self, fg_color="transparent")
         container.place(relx=0.5, rely=0.4, anchor="center")
 
         create_lathon_logo(container, font_size=40).pack(pady=(0, 10))
+
         ctk.CTkLabel(container, text="Bem-vindo ao LaThon!", font=Fonts.UI_MODAL_TITLE,
                      text_color=Colors.TEXT_NORMAL).pack(pady=(0, 5))
+
         ctk.CTkLabel(container,
                      text="Para começarmos, escolha onde você deseja salvar todos os seus Repositórios e Projetos.",
                      font=Fonts.UI, text_color=Colors.TEXT_MUTED).pack(pady=(0, 30))
+
         ctk.CTkButton(container, text=" Escolher Pasta Principal", image=Icons.get_ctk_image("folder.png"),
-                      command=manager.set_root_directory, font=Fonts.UI_TITLE, height=50, fg_color=Colors.BTN_PRIMARY,
+                      command=self.manager.set_root_directory, font=Fonts.UI_TITLE, height=50,
+                      fg_color=Colors.BTN_PRIMARY,
                       hover_color=Colors.BTN_PRIMARY_HOVER).pack()

@@ -126,6 +126,7 @@ class InsertManager:
             if not matrix: return
 
             self._ensure_package("array")
+            self._ensure_package("graphicx")  # <- MUDANÇA: Garante pacote de imagens
 
             needs_booktabs = border_style in ["Booktabs", "Booktabs Duplo", "Zebrada", "Zebrada + Cabeçalho",
                                               "Cabeçalho Destacado"]
@@ -194,8 +195,6 @@ class InsertManager:
             latex += f"\t\\end{{tabular}}\n\t\\caption{{{cap}}}\n\t\\label{{{lbl}}}\n\\end{{table}}\n"
             self.editor.insert("insert", latex)
 
-    # ... (O open_formula_wizard continua exatamente igual)
-
     def open_figure_wizard(self):
         res = FigureInputDialog(self.app).get_data()
         if res:
@@ -204,6 +203,9 @@ class InsertManager:
                 w_float = float(w_percent) / 100
             except ValueError:
                 w_float = 0.8
+
+            self._ensure_package("graphicx")  # <- MUDANÇA: Garante pacote de imagens
+
             latex = f"\\begin{{figure}}[h]\n\t\\centering\n\t\\includegraphics[width={w_float}\\textwidth]{{{path}}}\n\t\\caption{{{cap}}}\n\t\\label{{{lbl}}}\n\\end{{figure}}\n"
             self.editor.insert("insert", latex)
 
@@ -213,12 +215,16 @@ class InsertManager:
             mode, formula = res
             if not formula.strip(): return
 
-            if any(x in formula for x in
-                   ["pmatrix", "bmatrix", "cases", "\\frac", "\\int", "\\sum", "\\lim", "\\partial", "\\prod"]):
+            # MUDANÇA: Listas super atualizadas com todas as abas!
+            amsmath_triggers = ["pmatrix", "bmatrix", "vmatrix", "cases", "\\binom", "\\frac", "\\int", "\\sum",
+                                "\\lim", "\\partial", "\\prod"]
+            amssymb_triggers = ["\\infty", "\\approx", "\\neq", "\\leq", "\\geq", "\\pm", "\\times", "\\div",
+                                "\\rightarrow", "\\leftarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap",
+                                "\\emptyset", "\\forall", "\\exists"]
+
+            if any(x in formula for x in amsmath_triggers):
                 self._ensure_package("amsmath")
-            if any(x in formula for x in
-                   ["\\infty", "\\approx", "\\neq", "\\leq", "\\geq", "\\pm", "\\times", "\\div", "\\rightarrow",
-                    "\\leftarrow"]):
+            if any(x in formula for x in amssymb_triggers):
                 self._ensure_package("amssymb")
 
             if mode == "inline":

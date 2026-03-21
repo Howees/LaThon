@@ -4,6 +4,8 @@ import re
 
 # --- DESIGN SYSTEM ---
 from lathon.ui.design import Colors, Fonts
+from lathon.ui.widgets.tooltip import ToolTip
+from lathon.features.assistants.text_formatter import TextFormatter
 
 
 class LaTeXEditor(ctk.CTkFrame):
@@ -13,17 +15,66 @@ class LaTeXEditor(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent", **kwargs)
         self.app = app_instance
 
-        self.grid_rowconfigure(0, weight=1)
+        # Linha 0: Toolbar | Linha 1: Área de Texto
+        self.grid_rowconfigure(0, weight=0)
+        self.grid_rowconfigure(1, weight=1)
         self.grid_columnconfigure(1, weight=1)
 
+        # ==========================================
+        # 1. BARRA DE FERRAMENTAS DO EDITOR (TOOLBAR)
+        # ==========================================
+        self.toolbar = ctk.CTkFrame(self, height=38, fg_color=Colors.BG_PANEL, corner_radius=0)
+        self.toolbar.grid(row=0, column=0, columnspan=2, sticky="ew")
+
+        # Linha divisória charmosa embaixo da toolbar
+        ctk.CTkFrame(self.toolbar, height=1, fg_color=Colors.BORDER).pack(side="bottom", fill="x")
+
+        # Container único expandido por todo o espaço horizontal
+        tools_container = ctk.CTkFrame(self.toolbar, fg_color="transparent", border_width=1, border_color=Colors.BORDER,
+                                       corner_radius=6)
+        tools_container.pack(side="top", fill="x", expand=True, padx=10, pady=5)
+
+        btn_conf = {"width": 30, "height": 26, "fg_color": "transparent",
+                    "text_color": Colors.TEXT_NORMAL, "hover_color": Colors.BTN_HOVER}
+
+        # CORREÇÃO: Agora chama o TextFormatter diretamente!
+        self.btn_b = ctk.CTkButton(tools_container, text="B", font=Fonts.UI_BOLD,
+                                   command=lambda: TextFormatter.apply_format(self, "bold"), **btn_conf)
+        self.btn_b.pack(side="left", padx=(5, 2), pady=2)
+        ToolTip(self.btn_b, "Negrito (Ctrl+B)")
+
+        ctk.CTkFrame(tools_container, width=1, height=16, fg_color=Colors.BORDER).pack(side="left", padx=1)
+
+        self.btn_i = ctk.CTkButton(tools_container, text="I", font=("Segoe UI", 12, "italic"),
+                                   command=lambda: TextFormatter.apply_format(self, "italic"), **btn_conf)
+        self.btn_i.pack(side="left", padx=2, pady=2)
+        ToolTip(self.btn_i, "Itálico (Ctrl+I)")
+
+        ctk.CTkFrame(tools_container, width=1, height=16, fg_color=Colors.BORDER).pack(side="left", padx=1)
+
+        self.btn_u = ctk.CTkButton(tools_container, text="U", font=("Segoe UI", 12, "underline"),
+                                   command=lambda: TextFormatter.apply_format(self, "underline"), **btn_conf)
+        self.btn_u.pack(side="left", padx=2, pady=2)
+        ToolTip(self.btn_u, "Sublinhado (Ctrl+U)")
+
+        ctk.CTkFrame(tools_container, width=1, height=16, fg_color=Colors.BORDER).pack(side="left", padx=1)
+
+        self.btn_comment = ctk.CTkButton(tools_container, text="%", font=Fonts.UI_BOLD,
+                                         command=lambda: TextFormatter.toggle_comment(self), **btn_conf)
+        self.btn_comment.pack(side="left", padx=2, pady=2)
+        ToolTip(self.btn_comment, "Comentar (Ctrl+/)")
+
+        # ==========================================
+        # 2. ÁREA DE TEXTO E LINHAS
+        # ==========================================
         self.line_number_bar = ctk.CTkTextbox(self, width=45, font=Fonts.MONO, state="disabled",
                                               activate_scrollbars=False, fg_color=Colors.BG_SIDEBAR,
                                               text_color=Colors.TEXT_MUTED)
-        self.line_number_bar.grid(row=0, column=0, sticky="nsw")
+        self.line_number_bar.grid(row=1, column=0, sticky="nsw")
         self.line_number_bar._textbox.configure(spacing1=0, spacing2=0, spacing3=2)
 
         self.textbox = ctk.CTkTextbox(self, font=Fonts.MONO, wrap="word", undo=True, fg_color=Colors.BG_PANEL)
-        self.textbox.grid(row=0, column=1, sticky="nsew")
+        self.textbox.grid(row=1, column=1, sticky="nsew")
         self.textbox._textbox.configure(spacing1=0, spacing2=0, spacing3=2, exportselection=False)
         self._textbox = self.textbox._textbox
 
@@ -38,22 +89,27 @@ class LaTeXEditor(ctk.CTkFrame):
         self._original_scroll_cmd = self._textbox.cget("yscrollcommand")
         self._textbox.configure(yscrollcommand=self._on_scroll_proxy)
 
+        # --- EVENTOS ---
         self.textbox.bind("<KeyRelease>", self._on_text_changed)
         self._textbox.bind("<Double-Button-1>", self._select_word_double_click)
         self.textbox.bind("<Control-z>", self.undo)
         self.textbox.bind("<Control-y>", self.redo)
         self.textbox.bind("<Control-Shift-Z>", self.redo)
 
+        # CORREÇÃO: Atalhos apontando para os lugares certos
         self.textbox.bind("<Control-t>", lambda e: self._override_shortcut(e, self.app._toggle_theme_shortcut))
-        self.textbox.bind("<Control-b>", lambda e: self._override_shortcut(e, self.app._format_bold_shortcut))
-        self.textbox.bind("<Control-i>", lambda e: self._override_shortcut(e, self.app._format_italic_shortcut))
-        self.textbox.bind("<Control-u>", lambda e: self._override_shortcut(e, self.app._format_underline_shortcut))
-        self.textbox.bind("<Control-m>", lambda e: self._override_shortcut(e, self.app._toggle_chapter_shortcut))
+        self.textbox.bind("<Control-b>", lambda e: self._override_shortcut(e, lambda: TextFormatter.apply_format(self, "bold")))
+        self.textbox.bind("<Control-i>", lambda e: self._override_shortcut(e, lambda: TextFormatter.apply_format(self, "italic")))
+        self.textbox.bind("<Control-u>", lambda e: self._override_shortcut(e, lambda: TextFormatter.apply_format(self, "underline")))
         self.textbox.bind("<Control-e>", lambda e: self._override_shortcut(e, self.app._export_pdf_shortcut))
         self.textbox.bind("<Control-E>", lambda e: self._override_shortcut(e, self.app._export_zip_shortcut))
         self.textbox.bind("<Control-f>", lambda e: self._override_shortcut(e, self.app._find_shortcut))
         self.textbox.bind("<Control-s>", lambda e: self._override_shortcut(e, self.app._compile_shortcut))
+        self.textbox.bind("<Control-slash>", lambda e: self._override_shortcut(e, lambda: TextFormatter.toggle_comment(self)))
 
+    # ==========================================
+    # LÓGICA DE FORMATAÇÃO E EDIÇÃO
+    # ==========================================
     def _override_shortcut(self, event, action):
         action()
         return "break"
@@ -85,7 +141,9 @@ class LaTeXEditor(ctk.CTkFrame):
         self.mark_tw = tk.Toplevel(self)
         self.mark_tw.wm_overrideredirect(True)
         self.mark_tw.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.mark_tw, text=comment, justify='left', background=Colors.MARKER_TOOLTIP_BG, foreground=Colors.MARKER_TOOLTIP_FG, relief='solid', borderwidth=1, font=Fonts.UI).pack(ipadx=6, ipady=3)
+        tk.Label(self.mark_tw, text=comment, justify='left', background=Colors.MARKER_TOOLTIP_BG,
+                 foreground=Colors.MARKER_TOOLTIP_FG, relief='solid', borderwidth=1, font=Fonts.UI).pack(ipadx=6,
+                                                                                                         ipady=3)
 
     def _hide_mark_tooltip(self, event):
         if self.mark_tw:
@@ -93,12 +151,10 @@ class LaTeXEditor(ctk.CTkFrame):
             self.mark_tw = None
 
     def export_markers(self):
-        """Lê todas as tags de marcação ativas e exporta como uma lista de dicionários."""
         exported = []
         for tag_name, comment in self.mark_comments.items():
             ranges = self._textbox.tag_ranges(tag_name)
             if ranges:
-                # Pega a cor de fundo atual da tag
                 color = self._textbox.tag_cget(tag_name, "background")
                 exported.append({
                     "tag": tag_name,
@@ -110,9 +166,7 @@ class LaTeXEditor(ctk.CTkFrame):
         return exported
 
     def import_markers(self, markers_list):
-        """Recebe a lista do config.json e recria as marcações no texto."""
         self.mark_comments.clear()
-        # Limpa marcas antigas pra não duplicar
         for tag in self._textbox.tag_names():
             if tag.startswith("user_mark_"):
                 self._textbox.tag_delete(tag)
@@ -123,18 +177,16 @@ class LaTeXEditor(ctk.CTkFrame):
             color, comment = m["color"], m["comment"]
 
             try:
-                # Atualiza o contador interno para novas marcações não sobrescreverem
                 num = int(tag_name.split("_")[-1])
                 if num > max_counter: max_counter = num
 
-                # Recria a tag
                 self.tag_configure(tag_name, background=color, foreground="black")
                 self.tag_add(tag_name, start_idx, end_idx)
                 self.mark_comments[tag_name] = comment
                 self.tag_bind(tag_name, "<Enter>", lambda e, t=tag_name: self._show_mark_tooltip(e, t))
                 self.tag_bind(tag_name, "<Leave>", self._hide_mark_tooltip)
             except Exception as e:
-                pass  # Se o texto mudou por fora e o índice não existe mais, ignora
+                pass
         self.mark_counter = max_counter
 
     def update_colors(self):
