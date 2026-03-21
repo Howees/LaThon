@@ -85,13 +85,57 @@ class LaTeXEditor(ctk.CTkFrame):
         self.mark_tw = tk.Toplevel(self)
         self.mark_tw.wm_overrideredirect(True)
         self.mark_tw.wm_geometry(f"+{x}+{y}")
-        tk.Label(self.mark_tw, text=comment, justify='left', background="#ffffe0", foreground="black", relief='solid',
-                 borderwidth=1, font=Fonts.UI).pack(ipadx=6, ipady=3)
+        tk.Label(self.mark_tw, text=comment, justify='left', background=Colors.MARKER_TOOLTIP_BG, foreground=Colors.MARKER_TOOLTIP_FG, relief='solid', borderwidth=1, font=Fonts.UI).pack(ipadx=6, ipady=3)
 
     def _hide_mark_tooltip(self, event):
         if self.mark_tw:
             self.mark_tw.destroy()
             self.mark_tw = None
+
+    def export_markers(self):
+        """Lê todas as tags de marcação ativas e exporta como uma lista de dicionários."""
+        exported = []
+        for tag_name, comment in self.mark_comments.items():
+            ranges = self._textbox.tag_ranges(tag_name)
+            if ranges:
+                # Pega a cor de fundo atual da tag
+                color = self._textbox.tag_cget(tag_name, "background")
+                exported.append({
+                    "tag": tag_name,
+                    "start": str(ranges[0]),
+                    "end": str(ranges[1]),
+                    "color": color,
+                    "comment": comment
+                })
+        return exported
+
+    def import_markers(self, markers_list):
+        """Recebe a lista do config.json e recria as marcações no texto."""
+        self.mark_comments.clear()
+        # Limpa marcas antigas pra não duplicar
+        for tag in self._textbox.tag_names():
+            if tag.startswith("user_mark_"):
+                self._textbox.tag_delete(tag)
+
+        max_counter = 0
+        for m in markers_list:
+            tag_name, start_idx, end_idx = m["tag"], m["start"], m["end"]
+            color, comment = m["color"], m["comment"]
+
+            try:
+                # Atualiza o contador interno para novas marcações não sobrescreverem
+                num = int(tag_name.split("_")[-1])
+                if num > max_counter: max_counter = num
+
+                # Recria a tag
+                self.tag_configure(tag_name, background=color, foreground="black")
+                self.tag_add(tag_name, start_idx, end_idx)
+                self.mark_comments[tag_name] = comment
+                self.tag_bind(tag_name, "<Enter>", lambda e, t=tag_name: self._show_mark_tooltip(e, t))
+                self.tag_bind(tag_name, "<Leave>", self._hide_mark_tooltip)
+            except Exception as e:
+                pass  # Se o texto mudou por fora e o índice não existe mais, ignora
+        self.mark_counter = max_counter
 
     def update_colors(self):
         is_dark = ctk.get_appearance_mode() == "Dark"

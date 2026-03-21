@@ -36,13 +36,29 @@ class CompilerThread(Thread):
         self.tex_file_name_no_ext = Path(tex_file_name).stem
         self.compiler_path = compiler_path
         self.queue = q
+        self.process = None
+        self.is_cancelled = False
+
+    def cancel(self):
+        """Cancela a thread e mata o processo do compilador no Windows."""
+        self.is_cancelled = True
+        if self.process:
+            try:
+                # O /T mata a "árvore" toda (o .bat e o pdflatex.exe filho)
+                subprocess.run(['taskkill', '/F', '/T', '/PID', str(self.process.pid)],
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            except:
+                try:
+                    self.process.kill()
+                except:
+                    pass
 
     def log(self, message):
-        self.queue.put(message)
+        # Só manda pro terminal se não tiver sido cancelado
+        if not self.is_cancelled:
+            self.queue.put(message)
 
     def run(self):
-        # 1. Monta o conteúdo do .bat
-        # Usamos ECHO com códigos específicos para o Python identificar o passo
         bib_files_exist = any(self.project_dir.glob("*.bib"))
 
         if bib_files_exist:
@@ -80,7 +96,6 @@ class CompilerThread(Thread):
         miktex_bin_path = str(Path(self.compiler_path).parent)
         env["PATH"] = f"{miktex_bin_path};{env.get('PATH', '')}"
 
-        # 2. Configurações para esconder a janela (Performance Máxima)
         startupinfo = None
         creationflags = 0
 
@@ -91,11 +106,11 @@ class CompilerThread(Thread):
             creationflags = subprocess.CREATE_NO_WINDOW
 
         try:
-            # Executa o .bat
-            p = subprocess.Popen(
+            # ---> SALVAMOS O PROCESSO EM SELF.PROCESS <---
+            self.process = subprocess.Popen(
                 [str(runner_bat_path)],
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,  # Erros também vão para o stdout para filtrarmos
+                stderr=subprocess.STDOUT,
                 text=True,
                 encoding='utf-8',
                 errors='replace',
@@ -107,51 +122,48 @@ class CompilerThread(Thread):
 
             download_message_sent = False
 
-            # --- LOOP DE LEITURA OTIMIZADO ---
-            for line in iter(p.stdout.readline, ''):
+            for line in iter(self.process.stdout.readline, ''):
+                # Se o usuário clicou em Voltar, paramos de ler imediatamente
+                if self.is_cancelled:
+                    break
+
                 if not line: break
                 stripped = line.strip()
                 if not stripped: continue
 
-                # 1. Detecta Marcadores de Status do nosso .bat
                 if stripped.startswith('"___STATUS'):
-                    # Formato esperado: "___STATUS:Passo:Total:Mensagem..."
                     parts = stripped.replace('"', '').split(':')
                     if len(parts) >= 4:
                         msg = f">> [{parts[1]}/{parts[2]}] {parts[3]}"
                         self.log(msg)
                     continue
 
-                # 2. Detecta Erros Críticos do LaTeX (Começam com !)
-                # Ex: ! LaTeX Error: File `article.cls' not found.
                 if stripped.startswith('!'):
-                    self.log(f"ERRO: {stripped[1:].strip()}")  # Remove o ! e mostra o erro
+                    self.log(f"ERRO: {stripped[1:].strip()}")
                     continue
 
-                # 3. Detecta Erros Fatais genéricos
                 if "Fatal error" in stripped:
                     self.log(f"ERRO FATAL: {stripped}")
                     continue
 
-                # 4. Detecta Download de Pacotes (MiKTeX)
-                # Isso é importante não filtrar, pois o usuário precisa saber por que está demorando
                 if "installing package" in stripped.lower() and not download_message_sent:
-                    self.queue.put(("downloading_package", True))
+                    if not self.is_cancelled:
+                        self.queue.put(("downloading_package", True))
                     self.log(">> Baixando pacote necessário (isso pode demorar)...")
                     download_message_sent = True
                     continue
 
-            p.stdout.close()
-            p.wait()
+            self.process.stdout.close()
+            self.process.wait()
 
         except Exception as e:
             self.log(f"ERRO CRÍTICO no Python: {e}")
-            self.queue.put(("finished", False))
+            if not self.is_cancelled:
+                self.queue.put(("finished", False))
             return
 
-        # Verifica o resultado final
-        pdf_path = self.project_dir / Path(self.tex_file_name_no_ext).with_suffix(".pdf")
-
-        # Verifica se o PDF existe e se foi modificado recentemente (opcional, mas bom)
-        success = pdf_path.exists() and pdf_path.stat().st_size > 0
-        self.queue.put(("finished", success))
+        # Verifica o resultado final só se não foi cancelado
+        if not self.is_cancelled:
+            pdf_path = self.project_dir / Path(self.tex_file_name_no_ext).with_suffix(".pdf")
+            success = pdf_path.exists() and pdf_path.stat().st_size > 0
+            self.queue.put(("finished", success))

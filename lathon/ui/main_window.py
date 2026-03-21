@@ -3,8 +3,7 @@ import re
 from pathlib import Path
 import tkinter as tk
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
-import zipfile
+from tkinter import messagebox
 import subprocess
 
 # --- Cérebro e Ferramentas Base ---
@@ -18,6 +17,7 @@ from lathon.ui.panels.editor import LaTeXEditor
 from lathon.ui.panels.file import FilePanel
 from lathon.ui.panels.preview import PreviewPanel
 from lathon.ui.widgets.tooltip import ToolTip
+from lathon.ui.widgets.icon_button import create_icon_button
 
 # --- Funcionalidades Inserção e Preferências ---
 from lathon.features.preferences.layout_config import LayoutConfigDialog
@@ -35,7 +35,8 @@ from lathon.features.assistants.text_formatter import TextFormatter
 from lathon.features.assistants.options_manager import OptionsManager
 
 # --- DESIGN SYSTEM ---
-from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo, resource_path
+from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo
+
 
 class MiniOverleaf(ctk.CTk):
     def __init__(self):
@@ -52,6 +53,7 @@ class MiniOverleaf(ctk.CTk):
         self.queue = queue.Queue()
         self.project_dir = None
         self.active_file = None
+        self.active_compiler_thread = None  # Thread do compilador para poder ser morta
         self.download_notification_window = None
 
         self.grid_columnconfigure(0, weight=1)
@@ -60,7 +62,8 @@ class MiniOverleaf(ctk.CTk):
         self.welcome_screen = WelcomeScreen(self, self)
         self.welcome_screen.grid(row=0, column=0, sticky="nsew")
 
-        self.scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN, "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
+        self.scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN,
+                            "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
 
         self._build_ui()
         self._bind_events()
@@ -70,7 +73,9 @@ class MiniOverleaf(ctk.CTk):
         self.editor.update_colors()
 
         if not self.latex_compiler: messagebox.showerror("Aviso", "Compilador LaTeX não encontrado.")
-        self.process_queue()
+
+        # Inicia a fila de mensagens
+        self.after(100, self.process_queue)
 
     def _build_ui(self):
         self.main_frame = ctk.CTkFrame(self, fg_color=Colors.BG_MAIN, corner_radius=0)
@@ -89,28 +94,21 @@ class MiniOverleaf(ctk.CTk):
 
         create_lathon_logo(top_inner, font_size=16).pack(side="left", padx=5, pady=4)
 
-        menu_btn_conf = {"height": 26, "fg_color": "transparent", "text_color": Colors.BTN_TRANSPARENT_TEXT,
+        # Configuração base dos botões de menu
+        menu_btn_conf = {"height": 26, "width": 30, "fg_color": "transparent",
+                         "text_color": Colors.BTN_TRANSPARENT_TEXT,
                          "hover_color": Colors.BTN_HOVER, "font": Fonts.UI}
         menu_bg = Colors.BG_MAIN[1]
 
-        self.btn_file = ctk.CTkButton(top_inner, text=" Arquivo", image=Icons.get_ctk_image("folder.png"),
-                                      command=lambda: self._popup_menu(self.menu_file, self.btn_file), **menu_btn_conf)
-        self.btn_file.pack(side="left", padx=2)
-        self.menu_file = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
-        self.menu_file.add_command(label=" Novo Projeto", image=Icons.get_treeview_icon("new.png"), compound="left",
-                                   command=self._create_project_flow)
-        self.menu_file.add_command(label=" Abrir Projeto", image=Icons.get_treeview_icon("open.png"), compound="left",
-                                   command=self._open_project_flow)
-        self.menu_file.add_separator()
-        self.menu_file.add_command(label=" Salvar (Ctrl+S)", image=Icons.get_treeview_icon("save.png"), compound="left",
-                                   command=self.compile_action)
-        self.menu_file.add_separator()
-        self.menu_file.add_command(label=" Limpar Temporários", image=Icons.get_treeview_icon("clean.png"),
-                                   compound="left", command=self._clean_aux_files)
-        self.menu_file.add_separator()
-        self.menu_file.add_command(label=" Fechar Projeto", image=Icons.get_treeview_icon("close.png"), compound="left",
-                                   command=self._close_project)
+        # BOTÃO VOLTAR
+        self.btn_back = ctk.CTkButton(top_inner, text=" Voltar", image=Icons.get_ctk_image("back.png", size=(18, 18)),
+                                      command=self._close_project, **menu_btn_conf)
+        self.btn_back.pack(side="left", padx=(10, 5))
 
+        # DIVISÓRIA VERTICAL ELEGANTE
+        ctk.CTkFrame(top_inner, width=1, height=20, fg_color=Colors.BORDER).pack(side="left", padx=(5, 10))
+
+        # Inserir
         self.btn_insert = ctk.CTkButton(top_inner, text=" Inserir", image=Icons.get_ctk_image("insert.png"),
                                         command=lambda: self._popup_menu(self.menu_insert, self.btn_insert),
                                         **menu_btn_conf)
@@ -126,6 +124,7 @@ class MiniOverleaf(ctk.CTk):
         self.menu_insert.add_command(label=" Fórmula Matemática...", image=Icons.get_treeview_icon("math.png"),
                                      compound="left", command=lambda: self.insert_manager.open_formula_wizard())
 
+        # Opções
         self.btn_options = ctk.CTkButton(top_inner, text=" Opções", image=Icons.get_ctk_image("options.png"),
                                          command=lambda: self._popup_menu(self.menu_options, self.btn_options),
                                          **menu_btn_conf)
@@ -142,18 +141,21 @@ class MiniOverleaf(ctk.CTk):
                                       compound="left", command=lambda: self.options_manager.open_markers_list())
         self.menu_options.add_separator()
 
-        # Checkbuttons mantidos sem ícone customizado para não quebrar o "V" de seleção nativo
-        self.menu_options.add_checkbutton(label="Evidenciar Capítulos (Ctrl+M)", variable=self.var_chap, selectcolor=Colors.THON,
-                                          command=lambda: self.options_manager.set_chapter_highlight(self.var_chap.get()))
+        self.menu_options.add_checkbutton(label="Evidenciar Capítulos (Ctrl+M)", variable=self.var_chap,
+                                          selectcolor=Colors.THON,
+                                          command=lambda: self.options_manager.set_chapter_highlight(
+                                              self.var_chap.get()))
         self.menu_options.add_checkbutton(label="Autocompletar LaTeX", variable=self.var_auto, selectcolor=Colors.THON,
                                           command=lambda: self.options_manager.set_autocomplete(self.var_auto.get()))
-        self.menu_options.add_checkbutton(label="Corretor Ortográfico", variable=self.var_spell, selectcolor=Colors.THON,
+        self.menu_options.add_checkbutton(label="Corretor Ortográfico", variable=self.var_spell,
+                                          selectcolor=Colors.THON,
                                           command=lambda: self.options_manager.set_spellcheck(self.var_spell.get()))
 
         self.menu_options.add_separator()
         self.menu_options.add_command(label=" Alternar Tema (Ctrl+T)", image=Icons.get_treeview_icon("theme.png"),
                                       compound="left", command=lambda: self.options_manager.toggle_theme())
 
+        # Exportar
         self.btn_export = ctk.CTkButton(top_inner, text=" Exportar", image=Icons.get_ctk_image("export.png"),
                                         command=lambda: self._popup_menu(self.menu_export, self.btn_export),
                                         **menu_btn_conf)
@@ -164,6 +166,7 @@ class MiniOverleaf(ctk.CTk):
         self.menu_export.add_command(label=" ZIP (Ctrl+Shift+E)", image=Icons.get_treeview_icon("zip.png"),
                                      compound="left", command=lambda: ProjectExporter.export_zip(self.project_dir))
 
+        # Config
         self.btn_config = ctk.CTkButton(top_inner, text=" Config", image=Icons.get_ctk_image("config.png"),
                                         command=lambda: self._popup_menu(self.menu_config, self.btn_config),
                                         **menu_btn_conf)
@@ -178,32 +181,38 @@ class MiniOverleaf(ctk.CTk):
         self.menu_config.add_command(label=" Configuração de Tela...", image=Icons.get_treeview_icon("layout.png"),
                                      compound="left", command=lambda: LayoutConfigDialog(self))
 
-        format_frame = ctk.CTkFrame(top_inner, fg_color="transparent", border_width=1, border_color=Colors.BORDER, corner_radius=6)
+        # Formatação
+        format_frame = ctk.CTkFrame(top_inner, fg_color="transparent", border_width=1, border_color=Colors.BORDER,
+                                    corner_radius=6)
         format_frame.pack(side="left", padx=15, pady=4)
-        format_conf = {"width": 30, "height": 24, "fg_color": "transparent", "text_color": Colors.BTN_TRANSPARENT_TEXT, "hover_color": Colors.BTN_HOVER}
+        format_conf = {"width": 30, "height": 24, "fg_color": "transparent", "text_color": Colors.BTN_TRANSPARENT_TEXT,
+                       "hover_color": Colors.BTN_HOVER}
 
-        self.btn_b = ctk.CTkButton(format_frame, text="B", font=Fonts.UI_BOLD, command=self._format_bold_shortcut, **format_conf)
+        self.btn_b = ctk.CTkButton(format_frame, text="B", font=Fonts.UI_BOLD, command=self._format_bold_shortcut,
+                                   **format_conf)
         self.btn_b.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_b, "Negrito (Ctrl+B)")
         ctk.CTkFrame(format_frame, width=1, height=18, fg_color=Colors.BORDER).pack(side="left", padx=2)
 
-        self.btn_i = ctk.CTkButton(format_frame, text="I", font=("Segoe UI", 12, "italic"), command=self._format_italic_shortcut, **format_conf)
+        self.btn_i = ctk.CTkButton(format_frame, text="I", font=("Segoe UI", 12, "italic"),
+                                   command=self._format_italic_shortcut, **format_conf)
         self.btn_i.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_i, "Itálico (Ctrl+I)")
         ctk.CTkFrame(format_frame, width=1, height=18, fg_color=Colors.BORDER).pack(side="left", padx=2)
 
-        self.btn_u = ctk.CTkButton(format_frame, text="U", font=("Segoe UI", 12, "underline"), command=self._format_underline_shortcut, **format_conf)
+        self.btn_u = ctk.CTkButton(format_frame, text="U", font=("Segoe UI", 12, "underline"),
+                                   command=self._format_underline_shortcut, **format_conf)
         self.btn_u.pack(side="left", padx=2, pady=2)
         ToolTip(self.btn_u, "Sublinhado (Ctrl+U)")
 
-        self.compile_button = ctk.CTkButton(top_inner, text=" Compile (Ctrl+S)", image=Icons.get_ctk_image("compile.png"), height=24,
-                                            command=self.compile_action, fg_color=Colors.BTN_PRIMARY, hover_color=Colors.BTN_PRIMARY_HOVER, font=Fonts.UI_BOLD)
+        # Compile e Info
+        self.compile_button = ctk.CTkButton(top_inner, text=" Compile (Ctrl+S)",
+                                            image=Icons.get_ctk_image("compile.png"), height=24,
+                                            command=self.compile_action, fg_color=Colors.BTN_PRIMARY,
+                                            hover_color=Colors.BTN_PRIMARY_HOVER, font=Fonts.UI_BOLD)
         self.compile_button.pack(side="right", padx=10)
 
-        self.info_button = ctk.CTkButton(top_inner, text="", image=Icons.get_ctk_image("info.png"), width=26, height=24, fg_color="transparent", border_width=0,
-                                         hover_color=Colors.BTN_HOVER, command=self._show_about_dialog)
-        self.info_button.pack(side="right", padx=(0, 5))
-        ToolTip(self.info_button, "Informações do LaThon")
+        self.info_button = create_icon_button(top_inner, "info.png", "Informações do LaThon", self._show_about_dialog, side="right", padx=(0, 5))
 
         # ==========================================
         # 2. CONSTRUÇÃO DOS COMPONENTES (PAINÉIS)
@@ -229,15 +238,18 @@ class MiniOverleaf(ctk.CTk):
         self.editor = LaTeXEditor(self.editor_area_frame, self)
         self.editor.grid(row=0, column=0, sticky="nsew")
 
-        self.image_viewer_container = ctk.CTkScrollableFrame(self.center_frame, label_text="", fg_color="transparent", **self.scroll_conf)
+        self.image_viewer_container = ctk.CTkScrollableFrame(self.center_frame, label_text="", fg_color="transparent",
+                                                             **self.scroll_conf)
         self.image_viewer_label = ctk.CTkLabel(self.image_viewer_container, text="")
         self.image_viewer_label.pack(expand=True, padx=5, pady=5)
 
-        self.find_frame = ctk.CTkFrame(self.center_frame, fg_color=Colors.BG_MAIN, corner_radius=6, border_width=1, border_color=Colors.BORDER)
+        self.find_frame = ctk.CTkFrame(self.center_frame, fg_color=Colors.BG_MAIN, corner_radius=6, border_width=1,
+                                       border_color=Colors.BORDER)
 
         log_header = ctk.CTkFrame(self.center_frame, height=20, fg_color=Colors.BG_SIDEBAR, corner_radius=0)
         log_header.grid(row=2, column=0, sticky="ew")
-        ctk.CTkLabel(log_header, text="TERMINAL / LOG", font=Fonts.LOG_BOLD, text_color=Colors.TEXT_MUTED).pack(side="left", padx=5)
+        ctk.CTkLabel(log_header, text="TERMINAL / LOG", font=Fonts.LOG_BOLD, text_color=Colors.TEXT_MUTED).pack(
+            side="left", padx=5)
         self.log = ctk.CTkTextbox(self.center_frame, font=Fonts.LOG, state="disabled", fg_color=Colors.BG_PANEL)
         self.log.grid(row=3, column=0, sticky="nsew", pady=0)
         self.log.bind("<Button-1>", self._on_log_click)
@@ -258,8 +270,10 @@ class MiniOverleaf(ctk.CTk):
         self.spell_checker = SpellCheckHandler(self, self.editor)
         self.context_menu_manager = ContextMenuManager(self, self.editor, self.spell_checker)
 
+    # --- Funções Básicas e Atalhos ---
     def _show_about_dialog(self):
-        about_text = ("Lathon LaTeX Editor\nVersão 1.2\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o Lathon!!!")
+        about_text = (
+            "Lathon LaTeX Editor\nVersão 1.2\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o Lathon!!!")
         messagebox.showinfo("Sobre o Lathon", about_text)
 
     def _compile_shortcut(self, event=None):
@@ -309,7 +323,6 @@ class MiniOverleaf(ctk.CTk):
         return "break"
 
     def _schedule_outline_update(self, event=None):
-        """Atualiza o painel de Estrutura 1 segundo após o usuário parar de digitar."""
         if getattr(self, '_outline_timer', None):
             self.after_cancel(self._outline_timer)
         self._outline_timer = self.after(1000, self.file_panel.update_file_outline)
@@ -318,7 +331,6 @@ class MiniOverleaf(ctk.CTk):
         self.main_frame.grid_columnconfigure(0, weight=left_pct, uniform="colunas")
         self.main_frame.grid_columnconfigure(1, weight=center_pct, uniform="colunas")
         self.main_frame.grid_columnconfigure(2, weight=pdf_pct, uniform="colunas")
-
         self.config.update_layout(left=left_pct, center=center_pct, pdf=pdf_pct)
         if self.project_dir: self.compile_action()
 
@@ -362,34 +374,7 @@ class MiniOverleaf(ctk.CTk):
         except:
             pass
 
-    def _create_project_flow(self):
-        self._close_project()
-        self.welcome_screen._show_create_options()
-
-    def _finish_create_project(self, choice):
-        if choice == "zip":
-            zip_path = filedialog.askopenfilename(title="1. Selecione o arquivo .ZIP", filetypes=[("ZIP", "*.zip")])
-            if not zip_path: return
-            p = Path(filedialog.askdirectory(title="2. Selecione uma pasta VAZIA para extrair o projeto"))
-            if not p or any(p.iterdir()): messagebox.showerror("Erro", "A pasta deve estar vazia."); return
-            try:
-                with zipfile.ZipFile(zip_path, 'r') as z:
-                    z.extractall(p)
-                self.load_project_folder(p)
-            except Exception as e:
-                messagebox.showerror("Erro", f"{e}")
-        elif choice == "blank":
-            p = Path(filedialog.askdirectory(title="Selecione ou crie uma pasta VAZIA para o novo projeto"))
-            if not p or any(p.iterdir()): messagebox.showerror("Erro", "A pasta deve estar vazia."); return
-            (p / "main.tex").write_text(
-                "% LaThon Project\n\\documentclass{article}\n\\begin{document}\n\\section{Start}\nHello World!\n\\end{document}",
-                encoding="utf-8")
-            self.load_project_folder(p)
-
-    def _open_project_flow(self):
-        fp = filedialog.askopenfilename(filetypes=[("LaTeX", "*.tex")])
-        if fp: self.load_project_folder(Path(fp).parent)
-
+    # --- Gerenciamento de Projetos e Arquivos ---
     def load_project_folder(self, folder_path):
         self.welcome_screen.grid_forget()
         self.main_frame.grid(row=0, column=0, sticky="nsew")
@@ -398,40 +383,58 @@ class MiniOverleaf(ctk.CTk):
         except:
             self.attributes('-fullscreen', True)
         self.project_dir = folder_path
-        self.config.add_recent(folder_path)
+
         self.file_panel.populate_tree()
         tex_files = list(self.project_dir.rglob("*.tex"))
         if tex_files:
             main_file = next((f for f in tex_files if f.name.lower() in ("main.tex", "root.tex")), tex_files[0])
             self._open_file(main_file)
+
         self.title(f"LaThon Editor - {self.project_dir.name}")
         self.compile_action()
 
     def _close_project(self):
+        """Limpa o projeto atual, MATA o compilador e volta ao Dashboard"""
+
+        # 1. Mata a compilação ativa e limpa a fila do zumbi
+        if self.active_compiler_thread and self.active_compiler_thread.is_alive():
+            self.active_compiler_thread.cancel()
+            self.active_compiler_thread = None
+
+        while not self.queue.empty():
+            try:
+                self.queue.get_nowait()
+            except:
+                pass
+
+        # 2. Salva e limpa a UI
         self._save_active_file()
         self.project_dir, self.active_file = None, None
         self.spell_checker.clear_state()
         self.file_panel.clear_tree_and_outline()
         self.find_handler.hide_dialog()
         self.editor.delete("1.0", "end")
-
         self.preview_panel.clear_image()
-
         self.chapter_highlighter.is_active = False
+
+        # 3. Restaura janela
         self.title("LaThon LaTeX Editor")
         try:
             self.state('normal')
         except:
             self.attributes('-fullscreen', False)
         self.geometry("1200x800")
+
+        # 4. Troca para a Tela Inicial (Welcome/Dashboard)
         self.main_frame.grid_forget()
         self.welcome_screen.grid(row=0, column=0, sticky="nsew")
-        self.welcome_screen._show_main_menu()
+        self.welcome_screen._render()
 
     def _save_active_file(self):
         if self.active_file and self.active_file.exists():
             try:
                 self.active_file.write_text(self.editor.get("1.0", "end-1c"), encoding="utf-8")
+                self.config.save_file_markers(str(self.active_file.resolve()), self.editor.export_markers())
                 return True
             except Exception as e:
                 messagebox.showerror("Erro", f"{e}")
@@ -446,7 +449,6 @@ class MiniOverleaf(ctk.CTk):
             self.active_file = file_path
             self.editor.delete("1.0", "end")
             self.editor.insert("1.0", file_path.read_text(encoding="utf-8", errors="ignore"))
-
             self.editor.clear_undo_history()
 
             self.log_line(f"Abriu: {self.active_file.name}")
@@ -454,24 +456,25 @@ class MiniOverleaf(ctk.CTk):
             self.editor.apply_syntax_highlighting()
             self.editor.update_line_numbers()
             self.spell_checker.apply_spell_check()
+            saved_markers = self.config.get_file_markers(str(self.active_file.resolve()))
+            self.editor.import_markers(saved_markers)
             self.editor.see("1.0")
         except Exception as e:
             messagebox.showerror("Erro ao Abrir", f"{e}")
             self.active_file = None
 
     def _clean_aux_files(self):
+        """Limpa arquivos temporários do LaTeX silenciosamente a cada compilação."""
         if not self.project_dir: return
-        count = 0
         for ext in [".aux", ".log", ".out", ".toc", ".bbl", ".blg", ".synctex.gz", ".fls", ".fdb_latexmk"]:
             for f in self.project_dir.rglob(f"*{ext}"):
-                try:
-                    f.unlink(); count += 1
-                except:
-                    pass
-        self.log_line(f"Limpeza: {count} arquivos removidos.")
+                try: f.unlink()
+                except: pass
 
+    # --- Compilação e Threads ---
     def compile_action(self):
         if not self.project_dir or not self._save_active_file(): return
+        self._clean_aux_files()
         tex_files = list(self.project_dir.rglob("*.tex"))
         main_file = next((f for f in tex_files if f.name.lower() in ("main.tex", "root.tex")), self.active_file)
         if not main_file: return
@@ -489,29 +492,41 @@ class MiniOverleaf(ctk.CTk):
         self.log.configure(state="disabled")
         self.log_line(f"Compilando: {main_file.name}")
         self.compile_button.configure(state="disabled", text=" Compilando...", fg_color="gray")
-        CompilerThread(self.project_dir, main_file.name, self.latex_compiler, self.queue).start()
+
+        # Mata compilação anterior se estiver rodando
+        if getattr(self, "active_compiler_thread", None) and self.active_compiler_thread.is_alive():
+            self.active_compiler_thread.cancel()
+
+        # Inicia a nova
+        self.active_compiler_thread = CompilerThread(self.project_dir, main_file.name, self.latex_compiler, self.queue)
+        self.active_compiler_thread.start()
 
     def process_queue(self):
         try:
-            msg = self.queue.get_nowait()
-            if isinstance(msg, tuple):
-                if msg[0] == "finished":
-                    if self.download_notification_window: self.download_notification_window.destroy(); self.download_notification_window = None
-                    self.compile_button.configure(state="normal", text=" Compile (Ctrl+S)", fg_color=Colors.BTN_PRIMARY)
-                    if self.project_dir:
-                        main_file = next((f for f in list(self.project_dir.rglob("*.tex")) if
-                                          f.name.lower() in ("main.tex", "root.tex")), self.active_file)
-                        pdf = self.project_dir / main_file.with_suffix(".pdf").name
-                        if msg[1]:
-                            self.log_line("\n--- SUCESSO ---")
-                            self.preview_panel.show_pdf_preview(pdf)
-                        else:
-                            self.log_line("\n--- FALHA ---")
-                elif msg[0] == "downloading_package" and not self.download_notification_window:
-                    self.download_notification_window = ctk.CTkToplevel(self)
-                    ctk.CTkLabel(self.download_notification_window, text="Baixando pacotes...").pack(padx=20, pady=20)
-            else:
-                self.log_line(str(msg))
+            # Puxa tudo que tiver na fila para não engasgar a interface
+            while True:
+                msg = self.queue.get_nowait()
+                if isinstance(msg, tuple):
+                    if msg[0] == "finished":
+                        if self.download_notification_window: self.download_notification_window.destroy(); self.download_notification_window = None
+                        self.compile_button.configure(state="normal", text=" Compile (Ctrl+S)",
+                                                      fg_color=Colors.BTN_PRIMARY)
+                        if self.project_dir:
+                            main_file = next((f for f in list(self.project_dir.rglob("*.tex")) if
+                                              f.name.lower() in ("main.tex", "root.tex")), self.active_file)
+                            if main_file:
+                                pdf = self.project_dir / main_file.with_suffix(".pdf").name
+                                if msg[1]:
+                                    self.log_line("\n--- SUCESSO ---")
+                                    self.preview_panel.show_pdf_preview(pdf)
+                                else:
+                                    self.log_line("\n--- FALHA ---")
+                    elif msg[0] == "downloading_package" and not self.download_notification_window:
+                        self.download_notification_window = ctk.CTkToplevel(self)
+                        ctk.CTkLabel(self.download_notification_window, text="Baixando pacotes...").pack(padx=20,
+                                                                                                         pady=20)
+                else:
+                    self.log_line(str(msg))
         except queue.Empty:
             pass
         finally:
@@ -519,4 +534,6 @@ class MiniOverleaf(ctk.CTk):
 
     def on_closing(self):
         if self.project_dir: self._save_active_file()
+        if self.active_compiler_thread and self.active_compiler_thread.is_alive():
+            self.active_compiler_thread.cancel()
         self.destroy()

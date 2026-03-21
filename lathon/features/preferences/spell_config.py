@@ -11,12 +11,14 @@ AVAILABLE_LANGUAGES = {"pt": "Português", "en": "Inglês", "es": "Espanhol", "f
 
 class SpellConfigDialog(BaseModal):
     def __init__(self, master_app, spell_checker):
-        super().__init__(master_app, "Configurações de Ortografia", 450, 480)
+        # MUDANÇA 1: Aumentamos a altura de 450 para 520 para garantir espaço de sobra
+        super().__init__(master_app, "Configurações de Ortografia", 450, 520)
         self.spell_checker = spell_checker
 
-        ctk.CTkLabel(self.border_frame, text="Idiomas do Corretor", font=Fonts.UI_BOLD).pack(anchor="w", padx=30, pady=(20, 0))
+        ctk.CTkLabel(self.border_frame, text="Idiomas do Corretor", font=Fonts.UI_BOLD).pack(anchor="w", padx=30,
+                                                                                             pady=(15, 0))
         f1 = ctk.CTkScrollableFrame(self.border_frame, height=120, fg_color="transparent")
-        f1.pack(fill="x", padx=30, pady=5)
+        f1.pack(fill="x", padx=30, pady=0)
 
         cfg = self.app.config.get_spell()
         self.lang_vars = {}
@@ -26,27 +28,47 @@ class SpellConfigDialog(BaseModal):
             ctk.CTkCheckBox(f1, text=n, variable=var, onvalue="on", offvalue="off", command=self._on_lang_change).pack(
                 anchor="w", pady=2)
 
-        ctk.CTkFrame(self.border_frame, height=2, fg_color=Colors.BORDER).pack(fill="x", padx=20, pady=10)
-        ctk.CTkLabel(self.border_frame, text="Dicionário Pessoal", font=Fonts.UI_BOLD).pack(anchor="w", padx=30)
+        ctk.CTkFrame(self.border_frame, height=1, fg_color=Colors.BORDER).pack(fill="x", padx=20, pady=10)
+        ctk.CTkLabel(self.border_frame, text="Dicionário Pessoal", font=Fonts.UI_BOLD).pack(anchor="w", padx=30,
+                                                                                            pady=(0, 5))
 
         f2 = ctk.CTkFrame(self.border_frame, fg_color="transparent")
-        f2.pack(fill="both", expand=True, padx=30, pady=5)
+        f2.pack(fill="both", expand=True, padx=30, pady=(0, 10))
 
         is_dark = ctk.get_appearance_mode() == "Dark"
         bg_color = Colors.BG_PANEL[1] if is_dark else "#f0f0f0"
         fg_color = Colors.TEXT_NORMAL[1] if is_dark else Colors.TEXT_NORMAL[0]
 
-        self.words_listbox = tk.Listbox(f2, bd=0, highlightthickness=0, bg=bg_color, fg=fg_color, font=Fonts.UI)
-        self.words_listbox.pack(fill="both", expand=True, pady=5)
-        self._refresh_listbox()
-
+        # --- MUDANÇA 2: Colamos os botões no FUNDO PRIMEIRO para a lista não esmagá-los ---
         btn_f = ctk.CTkFrame(f2, fg_color="transparent")
-        btn_f.pack(fill="x", pady=5)
-        self.new_word_entry = ctk.CTkEntry(btn_f, placeholder_text="Nova palavra...")
-        self.new_word_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        ctk.CTkButton(btn_f, text="+", width=30, command=self._add_manual_word).pack(side="left")
-        ctk.CTkButton(btn_f, text="Remover", fg_color=Colors.BTN_DANGER, hover_color=Colors.BTN_DANGER_HOVER, width=80,
-                      command=self._remove_word).pack(side="right", padx=(5, 0))
+        btn_f.pack(side="bottom", fill="x")
+
+        btn_f.grid_columnconfigure(0, weight=1)
+
+        self.new_word_entry = ctk.CTkEntry(btn_f, placeholder_text="Nova palavra...", height=30)
+        self.new_word_entry.grid(row=0, column=0, sticky="ew", padx=(0, 5))
+
+        btn_add = ctk.CTkButton(btn_f, text="+", width=35, height=30, command=self._add_manual_word)
+        btn_add.grid(row=0, column=1, padx=(0, 5))
+
+        btn_remove = ctk.CTkButton(btn_f, text="Remover", fg_color=Colors.BTN_DANGER,
+                                   hover_color=Colors.BTN_DANGER_HOVER, width=70, height=30, command=self._remove_word)
+        btn_remove.grid(row=0, column=2)
+
+        # --- MUDANÇA 3: A lista entra DEPOIS e preenche só o que sobrou (side="top") ---
+        list_frame = ctk.CTkFrame(f2, fg_color=bg_color, corner_radius=6, border_width=1, border_color=Colors.BORDER)
+        list_frame.pack(side="top", fill="both", expand=True, pady=(0, 10))
+
+        scrollbar = ctk.CTkScrollbar(list_frame, orientation="vertical")
+        scrollbar.pack(side="right", fill="y", padx=2, pady=2)
+
+        self.words_listbox = tk.Listbox(list_frame, bd=0, highlightthickness=0, bg=bg_color, fg=fg_color, font=Fonts.UI)
+        self.words_listbox.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+
+        self.words_listbox.config(yscrollcommand=scrollbar.set)
+        scrollbar.configure(command=self.words_listbox.yview)
+
+        self._refresh_listbox()
 
         self._create_action_buttons("Fechar", self._close_dialog)
 

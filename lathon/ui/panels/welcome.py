@@ -1,77 +1,53 @@
-import customtkinter as ctk
+import os
 from pathlib import Path
+import customtkinter as ctk
 
-# --- DESIGN SYSTEM ---
+from lathon.core.workspace import WorkspaceManager
 from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo
-
+from lathon.ui.panels.repo_panel import RepoPanel
+from lathon.ui.panels.project_panel import ProjectPanel
 
 class WelcomeScreen(ctk.CTkFrame):
-    def __init__(self, master, app_instance):
-        super().__init__(master, fg_color="transparent")
-        self.app = app_instance
-        self.pack(fill="both", expand=True)
+    """Atua apenas como ROTEADOR. Decide qual das 3 telas carregar."""
+    def __init__(self, parent, app):
+        super().__init__(parent, fg_color=Colors.BG_MAIN)
+        self.app = app
+        self.manager = WorkspaceManager(app, self)
+        self._render()
 
-        self.center_container = ctk.CTkFrame(self, fg_color="transparent")
-        self.center_container.place(relx=0.5, rely=0.5, anchor="center")
-        self._show_main_menu()
+    def _render(self):
+        for widget in self.winfo_children():
+            widget.destroy()
 
-    def _show_main_menu(self):
-        for widget in self.center_container.winfo_children(): widget.destroy()
+        root_path = self.app.config.get_root_path()
+        if not root_path or not os.path.exists(root_path):
+            SetupPanel(self, self.app, self.manager).pack(fill="both", expand=True)
+            return
 
-        # Usa o componente centralizado para a Logo (bem grande)
-        logo = create_lathon_logo(self.center_container, font_size=60)
-        logo.pack(pady=(0, 20))
+        last_ws = self.app.config.get_last_workspace()
+        if last_ws and os.path.exists(last_ws):
+            if Path(root_path) in Path(last_ws).parents or Path(root_path) == Path(last_ws).parent:
+                ProjectPanel(self, self.app, Path(last_ws), self.manager).pack(fill="both", expand=True)
+                return
 
-        ctk.CTkButton(self.center_container, text=" Criar Novo Projeto",
-                      image=Icons.get_ctk_image("new.png", size=(20, 20)),
-                      command=self._show_create_options, width=300, height=45, font=(Fonts.UI[0], 14, "bold"),
-                      fg_color=Colors.BTN_PRIMARY, hover_color=Colors.BTN_PRIMARY_HOVER, corner_radius=8).pack(pady=8)
+        RepoPanel(self, self.app, Path(root_path), self.manager).pack(fill="both", expand=True)
 
-        ctk.CTkButton(self.center_container, text=" Abrir Projeto Existente",
-                      image=Icons.get_ctk_image("open.png", size=(20, 20)),
-                      command=self.app._open_project_flow, width=300, height=45, font=(Fonts.UI[0], 14, "bold"),
-                      fg_color=Colors.BG_MAIN, text_color=Colors.TEXT_NORMAL, border_width=2,
-                      border_color=Colors.BORDER, hover_color=Colors.BTN_HOVER, corner_radius=8).pack(pady=8)
 
-        recents = self.app.config.get_recents()
-        if recents:
-            ctk.CTkFrame(self.center_container, height=1, width=200, fg_color=Colors.BORDER).pack(pady=(25, 10))
-            ctk.CTkLabel(self.center_container, text="Recentes", text_color=Colors.TEXT_MUTED, font=Fonts.UI_BOLD).pack(
-                pady=(0, 5))
-            scroll_recents = ctk.CTkScrollableFrame(self.center_container, width=320, height=120,
-                                                    fg_color="transparent")
-            scroll_recents.pack()
+# ==========================================
+# TELA 1: CONFIGURAÇÃO INICIAL (SETUP)
+# ==========================================
+class SetupPanel(ctk.CTkFrame):
+    def __init__(self, parent, app, manager):
+        super().__init__(parent, fg_color="transparent")
+        container = ctk.CTkFrame(self, fg_color="transparent")
+        container.place(relx=0.5, rely=0.4, anchor="center")
 
-            for path_str in recents:
-                p = Path(path_str)
-                if p.exists():
-                    ctk.CTkButton(scroll_recents, text=f" {p.name}", image=Icons.get_ctk_image("tex.png"), anchor="w",
-                                  font=Fonts.UI, height=30, fg_color="transparent", text_color=Colors.TEXT_NORMAL,
-                                  hover_color=Colors.BTN_HOVER,
-                                  command=lambda x=p: self.app.load_project_folder(x)).pack(fill="x", pady=1)
-
-        ctk.CTkLabel(self.center_container, text="v1.2 - Public Edition", text_color=Colors.TEXT_MUTED,
-                     font=("Segoe UI", 10)).pack(pady=(20, 0))
-
-    def _show_create_options(self):
-        for widget in self.center_container.winfo_children(): widget.destroy()
-
-        ctk.CTkLabel(self.center_container, text="Novo Projeto", font=Fonts.UI_MODAL_TITLE).pack(pady=(0, 30))
-
-        ctk.CTkButton(self.center_container, text=" Começar do Zero",
-                      image=Icons.get_ctk_image("file.png", size=(20, 20)),
-                      command=lambda: self.app._finish_create_project("blank"), width=300, height=45,
-                      font=(Fonts.UI[0], 14, "bold"),
-                      corner_radius=8, fg_color=Colors.THON, hover_color="#2b7cb5").pack(
-            pady=10)  # Azul um pouco mais escuro pro hover
-
-        ctk.CTkButton(self.center_container, text=" Importar de .zip",
-                      image=Icons.get_ctk_image("zip.png", size=(20, 20)),
-                      command=lambda: self.app._finish_create_project("zip"), width=300, height=45,
-                      font=(Fonts.UI[0], 14, "bold"),
-                      corner_radius=8, fg_color=Colors.BG_MAIN, text_color=Colors.TEXT_NORMAL,
-                      hover_color=Colors.BTN_HOVER).pack(pady=10)
-
-        ctk.CTkButton(self.center_container, text="← Voltar", command=self._show_main_menu, width=100, height=30,
-                      fg_color="transparent", text_color=Colors.TEXT_MUTED, hover_color=Colors.BTN_HOVER).pack(
-            pady=(30, 0))
+        create_lathon_logo(container, font_size=40).pack(pady=(0, 10))
+        ctk.CTkLabel(container, text="Bem-vindo ao LaThon!", font=Fonts.UI_MODAL_TITLE,
+                     text_color=Colors.TEXT_NORMAL).pack(pady=(0, 5))
+        ctk.CTkLabel(container,
+                     text="Para começarmos, escolha onde você deseja salvar todos os seus Repositórios e Projetos.",
+                     font=Fonts.UI, text_color=Colors.TEXT_MUTED).pack(pady=(0, 30))
+        ctk.CTkButton(container, text=" Escolher Pasta Principal", image=Icons.get_ctk_image("folder.png"),
+                      command=manager.set_root_directory, font=Fonts.UI_TITLE, height=50, fg_color=Colors.BTN_PRIMARY,
+                      hover_color=Colors.BTN_PRIMARY_HOVER).pack()

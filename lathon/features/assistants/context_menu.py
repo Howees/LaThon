@@ -1,11 +1,10 @@
+import customtkinter as ctk
 from lathon.ui.widgets.modern_menu import ModernMenu
-from lathon.features.assistants.marker_dialog import MarkerDialog
-
-# --- DESIGN SYSTEM ---
+from lathon.ui.widgets.base_modal import BaseModal
 from lathon.ui.design import Colors
 
 class ContextMenuManager:
-    """Gerencia a exibição do menu de botão direito, delegando as ações para os respectivos módulos."""
+    """Gerencia a exibição do menu de botão direito, delegando as ações."""
     def __init__(self, app, editor, spell_checker):
         self.app = app
         self.editor = editor
@@ -52,11 +51,43 @@ class ContextMenuManager:
             except ValueError: pass
 
     def _prompt_mark(self):
+        """Abre a janela de marcação usando uma função simples, sem criar classes novas."""
         try: sel_start, sel_end = self.editor.tag_ranges("sel")
         except ValueError: return
 
-        d = MarkerDialog(self.app)
-        result = d.get_data()
+        # Instancia o BaseModal diretamente
+        modal = BaseModal(self.app, "Marcação de Texto", 350, 220)
+
+        ctk.CTkLabel(modal.border_frame, text="Adicione um comentário (ou deixe em branco):", text_color=Colors.TEXT_NORMAL).pack(pady=(15, 5))
+        entry = ctk.CTkEntry(modal.border_frame, width=280, fg_color=Colors.BG_MAIN, text_color=Colors.TEXT_NORMAL)
+        entry.pack(pady=5)
+        entry.focus_set()
+
+        color_frame = ctk.CTkFrame(modal.border_frame, fg_color="transparent")
+        color_frame.pack(pady=(10, 0))
+
+        selected_color = ctk.StringVar(value=Colors.MARKER_YELLOW)
+
+        for hex_code, name in Colors.MARKER_PALETTE:
+            rb = ctk.CTkRadioButton(color_frame, text="", variable=selected_color, value=hex_code, fg_color=hex_code,
+                                    hover_color=hex_code, border_color=hex_code, width=20, border_width_checked=6)
+            rb.pack(side="left", padx=10)
+
+        # Funções locais para lidar com os botões
+        def on_ok(event=None):
+            modal.result = (selected_color.get(), entry.get())
+            modal._close_dialog()
+
+        def on_cancel(event=None):
+            modal.result = None
+            modal._close_dialog()
+
+        entry.bind("<Return>", on_ok)
+        entry.bind("<Escape>", on_cancel)
+        modal._create_action_buttons("Marcar", on_ok)
+
+        # Espera o usuário fechar a janela
+        result = modal.get_data()
 
         if result:
             color, comment = result

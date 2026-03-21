@@ -1,7 +1,7 @@
 import customtkinter as ctk
 
 # --- DESIGN SYSTEM ---
-from lathon.ui.design import Colors
+from lathon.ui.design import Colors, resource_path
 
 
 class BaseModal(ctk.CTkToplevel):
@@ -9,6 +9,7 @@ class BaseModal(ctk.CTkToplevel):
         super().__init__(master_app)
         self.app = master_app
         self.title(title)
+        self.after(200, lambda: self.iconbitmap(resource_path("icones/lathon.ico")))
         self.withdraw()
         if master_app: self.transient(master_app)
 

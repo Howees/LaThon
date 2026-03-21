@@ -57,6 +57,23 @@ class Colors:
     HIGHLIGHT_ALL = ("#f2f2a4", "#5c5c42")
     HIGHLIGHT_CURRENT = ("#ffcc00", "#ffaa00")
 
+    # Cores de Marcação (Markers)
+    MARKER_YELLOW = "#ffeb3b"
+    MARKER_GREEN = "#81c784"
+    MARKER_BLUE = "#64b5f6"
+    MARKER_RED = "#e57373"
+
+    MARKER_PALETTE = [
+        (MARKER_YELLOW, "Amarelo"),
+        (MARKER_GREEN, "Verde"),
+        (MARKER_BLUE, "Azul"),
+        (MARKER_RED, "Vermelho")
+    ]
+
+    # Tooltip exclusivo das marcações (Balãozinho amarelo)
+    MARKER_TOOLTIP_BG = "#ffffe0"
+    MARKER_TOOLTIP_FG = "black"
+
 
 # ==========================================
 # 🔤 2. FONTES PADRONIZADAS

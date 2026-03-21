@@ -1,6 +1,6 @@
 import customtkinter as ctk
+import tkinter as tk
 from lathon.ui.design import Colors
-
 
 class ThemeManager:
     """Gerencia a alternância de Tema Claro/Escuro por todo o sistema."""
@@ -19,10 +19,21 @@ class ThemeManager:
         app.main_frame.configure(fg_color=Colors.BG_MAIN[idx])
 
         # 3. Força a atualização dos Menus do Topo (Eles não atualizam sozinhos!)
+        # 3. Atualiza os Menus do Topo de forma segura
         menu_bg = Colors.BG_MAIN[idx]
         menu_fg = Colors.TEXT_NORMAL[idx]
-        for menu in [app.menu_file, app.menu_insert, app.menu_options, app.menu_export, app.menu_config]:
-            menu.configure(bg=menu_bg, fg=menu_fg)
+
+        # Em vez de listar nomes fixos que podem não existir,
+        # vamos procurar por qualquer objeto que seja um menu no app
+        for attr_name in dir(app):
+            attr_value = getattr(app, attr_name, None)
+            if isinstance(attr_value, tk.Menu):
+                try:
+                    attr_value.configure(bg=menu_bg, fg=menu_fg,
+                                         activebackground=Colors.BTN_HOVER[idx],
+                                         activeforeground=menu_fg)
+                except:
+                    pass
 
         # 4. Atualiza a base do editor e FORÇA a sintaxe a repintar na hora
         app.editor.update_colors()
