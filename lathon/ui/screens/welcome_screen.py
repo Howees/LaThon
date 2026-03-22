@@ -4,8 +4,8 @@ import customtkinter as ctk
 
 from lathon.core.workspace import WorkspaceManager
 from lathon.ui.design import Colors, Fonts, Icons, create_lathon_logo
-from lathon.ui.panels.repo_panel import RepoPanel
-from lathon.ui.panels.project_panel import ProjectPanel
+from lathon.ui.screens.repo_screen import RepoPanel
+from lathon.ui.screens.project_screen import ProjectPanel
 
 
 class WelcomeScreen(ctk.CTkFrame):

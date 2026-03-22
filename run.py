@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from lathon.ui.main_window import MiniOverleaf
+from lathon.ui.screens.main_window import MiniOverleaf
 
 if __name__ == "__main__":
     ctk.set_appearance_mode("Dark")

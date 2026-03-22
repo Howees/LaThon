@@ -12,16 +12,15 @@ from lathon.core.compiler import find_latex_compiler, CompilerThread
 from lathon.core.exporter import ProjectExporter
 
 # --- Componentes Visuais (UI Panels & Widgets) ---
-from lathon.ui.panels.welcome import WelcomeScreen
-from lathon.ui.panels.editor import LaTeXEditor
-from lathon.ui.panels.file import FilePanel
-from lathon.ui.panels.preview import PreviewPanel
+from lathon.ui.screens.welcome_screen import WelcomeScreen
+from lathon.ui.screens.workspace.editor_panel import LaTeXEditor
+from lathon.ui.screens.workspace.file_panel import FilePanel
+from lathon.ui.screens.workspace.preview_panel import PreviewPanel
+from lathon.features.assistants.terminal_logs import TerminalPanel
 from lathon.ui.widgets.icon_button import create_icon_button
 
 # --- Funcionalidades Inserção e Preferências ---
-from lathon.features.preferences.layout_config import LayoutConfigDialog
-from lathon.features.preferences.font_config import FontConfigDialog
-from lathon.features.preferences.spell_config import SpellConfigDialog
+from lathon.features.preferences.preferences_manager import PreferencesManager
 from lathon.features.insert.insert_manager import InsertManager
 
 # --- Opções e Assistentes de Edição ---
@@ -63,11 +62,16 @@ class MiniOverleaf(ctk.CTk):
         self.scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN,
                             "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
 
+        # Contrata o gerente PRIMEIRO!
+        self.preferences_manager = PreferencesManager(self)
+
+        # Agora sim manda construir a interface
         self._build_ui()
         self._bind_events()
 
+        # E depois da interface pronta, aplica a fonte no editor
         layout_cfg = self.config.get_layout()
-        self.apply_font_config(layout_cfg.get("font_family"), layout_cfg.get("font_size"))
+        self.preferences_manager.apply_font_config(layout_cfg.get("font_family"), layout_cfg.get("font_size"))
         self.editor.update_colors()
 
         if not self.latex_compiler: messagebox.showerror("Aviso", "Compilador LaTeX não encontrado.")
@@ -129,9 +133,11 @@ class MiniOverleaf(ctk.CTk):
         self.btn_options.pack(side="left", padx=2)
         self.menu_options = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
 
+        # Variáveis do Menu
         self.var_chap = tk.BooleanVar(value=False)
         self.var_auto = tk.BooleanVar(value=True)
         self.var_spell = tk.BooleanVar(value=True)
+        self.var_warnings = tk.BooleanVar(value=True)  # <- NOVA VARIÁVEL AQUI
 
         self.menu_options.add_command(label=" Localizar (Ctrl+F)", image=Icons.get_treeview_icon("search.png"),
                                       compound="left", command=lambda: self.options_manager.show_find_dialog())
@@ -148,6 +154,11 @@ class MiniOverleaf(ctk.CTk):
         self.menu_options.add_checkbutton(label="Corretor Ortográfico", variable=self.var_spell,
                                           selectcolor=Colors.THON,
                                           command=lambda: self.options_manager.set_spellcheck(self.var_spell.get()))
+
+        # === ADICIONE O NOVO BOTÃO AQUI ===
+        self.menu_options.add_checkbutton(label="Mostrar Avisos (Warnings)", variable=self.var_warnings,
+                                          selectcolor=Colors.THON,
+                                          command=lambda: self.options_manager.set_warnings(self.var_warnings.get()))
 
         self.menu_options.add_separator()
         self.menu_options.add_command(label=" Alternar Tema (Ctrl+T)", image=Icons.get_treeview_icon("theme.png"),
@@ -171,13 +182,13 @@ class MiniOverleaf(ctk.CTk):
         self.btn_config.pack(side="left", padx=2)
         self.menu_config = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
         self.menu_config.add_command(label=" Corretor Ortográfico...", image=Icons.get_treeview_icon("spell.png"),
-                                     compound="left", command=lambda: SpellConfigDialog(self, self.spell_checker))
+                                     compound="left", command=lambda: self.preferences_manager.open_spell_config())
         self.menu_config.add_separator()
         self.menu_config.add_command(label=" Fonte do Editor...", image=Icons.get_treeview_icon("font.png"),
-                                     compound="left", command=lambda: FontConfigDialog(self))
+                                     compound="left", command=lambda: self.preferences_manager.open_font_config())
         self.menu_config.add_separator()
         self.menu_config.add_command(label=" Configuração de Tela...", image=Icons.get_treeview_icon("layout.png"),
-                                     compound="left", command=lambda: LayoutConfigDialog(self))
+                                     compound="left", command=lambda: self.preferences_manager.open_layout_config())
 
         # Compile e Info
         self.compile_button = ctk.CTkButton(top_inner, text=" Compile (Ctrl+S)",
@@ -192,7 +203,7 @@ class MiniOverleaf(ctk.CTk):
         # 2. CONSTRUÇÃO DOS COMPONENTES (PAINÉIS)
         # ==========================================
         layout_cfg = self.config.get_layout()
-        self.apply_layout_weights(layout_cfg["left"], layout_cfg["center"], layout_cfg["pdf"])
+        self.preferences_manager.apply_layout_weights(layout_cfg["left"], layout_cfg["center"], layout_cfg["pdf"])
 
         self.file_panel = FilePanel(self.main_frame, self)
         self.file_panel.grid(row=1, column=0, sticky="nsew", padx=(0, 2))
@@ -220,13 +231,9 @@ class MiniOverleaf(ctk.CTk):
         self.find_frame = ctk.CTkFrame(self.center_frame, fg_color=Colors.BG_MAIN, corner_radius=6, border_width=1,
                                        border_color=Colors.BORDER)
 
-        log_header = ctk.CTkFrame(self.center_frame, height=20, fg_color=Colors.BG_SIDEBAR, corner_radius=0)
-        log_header.grid(row=2, column=0, sticky="ew")
-        ctk.CTkLabel(log_header, text="TERMINAL / LOG", font=Fonts.LOG_BOLD, text_color=Colors.TEXT_MUTED).pack(
-            side="left", padx=5)
-        self.log = ctk.CTkTextbox(self.center_frame, font=Fonts.LOG, state="disabled", fg_color=Colors.BG_PANEL)
-        self.log.grid(row=3, column=0, sticky="nsew", pady=0)
-        self.log.bind("<Button-1>", self._on_log_click)
+        # === NOVO TERMINAL INTELIGENTE ===
+        self.terminal_panel = TerminalPanel(self.center_frame, self)
+        self.terminal_panel.grid(row=2, column=0, rowspan=2, sticky="nsew", pady=0)
 
         self.preview_panel = PreviewPanel(self.main_frame, self)
         self.preview_panel.grid(row=1, column=2, sticky="nsew")
@@ -289,17 +296,6 @@ class MiniOverleaf(ctk.CTk):
             self.after_cancel(self._outline_timer)
         self._outline_timer = self.after(1000, self.file_panel.update_file_outline)
 
-    def apply_layout_weights(self, left_pct, center_pct, pdf_pct):
-        self.main_frame.grid_columnconfigure(0, weight=left_pct, uniform="colunas")
-        self.main_frame.grid_columnconfigure(1, weight=center_pct, uniform="colunas")
-        self.main_frame.grid_columnconfigure(2, weight=pdf_pct, uniform="colunas")
-        self.config.update_layout(left=left_pct, center=center_pct, pdf=pdf_pct)
-        if self.project_dir: self.compile_action()
-
-    def apply_font_config(self, family, size):
-        self.editor.configure_font((family, size))
-        self.config.update_layout(font_family=family, font_size=size)
-
     def _popup_menu(self, menu, btn):
         menu.tk_popup(btn.winfo_rootx(), btn.winfo_rooty() + btn.winfo_height())
         menu.grab_release()
@@ -313,13 +309,7 @@ class MiniOverleaf(ctk.CTk):
             self.editor_area_frame.grid(row=0, column=0, sticky="nsew")
 
     def log_line(self, text):
-        try:
-            self.log.configure(state="normal")
-            self.log.insert("end", text + "\n")
-            self.log.configure(state="disabled")
-            self.log.see("end")
-        except:
-            pass
+        self.terminal_panel.log_line(text)
 
     def _on_log_click(self, event):
         try:
@@ -449,9 +439,7 @@ class MiniOverleaf(ctk.CTk):
             except:
                 pass
 
-        self.log.configure(state="normal");
-        self.log.delete('1.0', 'end');
-        self.log.configure(state="disabled")
+        self.terminal_panel.clear()
         self.log_line(f"Compilando: {main_file.name}")
         self.compile_button.configure(state="disabled", text=" Compilando...", fg_color="gray")
 
@@ -478,11 +466,23 @@ class MiniOverleaf(ctk.CTk):
                                               f.name.lower() in ("main.tex", "root.tex")), self.active_file)
                             if main_file:
                                 pdf = self.project_dir / main_file.with_suffix(".pdf").name
+                                log_file = self.project_dir / main_file.with_suffix(".log").name
+
+                                # 1. Roda o caçador de bugs SEMPRE (lendo o arquivo .log)
+                                has_errors = self.terminal_panel.analyze_latex_log(log_file)
+
                                 if msg[1]:
-                                    self.log_line("\n--- SUCESSO ---")
+                                    # Gerou PDF, mas teve erro de sintaxe no meio?
+                                    if has_errors:
+                                        self.terminal_panel.log_line(
+                                            "\n--- COMPILADO COM ERROS (Verifique as linhas vermelhas) ---", "error")
+                                    else:
+                                        self.terminal_panel.log_line("\n--- SUCESSO ---", "success")
                                     self.preview_panel.show_pdf_preview(pdf)
                                 else:
-                                    self.log_line("\n--- FALHA ---")
+                                    # Falhou criticamente (nem gerou PDF)
+                                    self.terminal_panel.log_line("\n--- FALHA CRÍTICA NA COMPILAÇÃO ---", "error")
+
                     elif msg[0] == "downloading_package" and not self.download_notification_window:
                         self.download_notification_window = ctk.CTkToplevel(self)
                         ctk.CTkLabel(self.download_notification_window, text="Baixando pacotes...").pack(padx=20,

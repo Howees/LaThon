@@ -460,11 +460,11 @@ class PreviewPanel(ctk.CTkFrame):
             self.clipboard_append(self.selected_text)
             self.app.log_line(f"[Aviso] Texto copiado ({len(self.selected_text)} caracteres).")
 
-    # ==========================================
+# ==========================================
     # SYNCTEX: INVERSE SEARCH (DUPLO CLIQUE -> CÓDIGO)
     # ==========================================
     def _on_pdf_double_click(self, event):
-        """Sincronia Nativa + Verificação Inteligente (Padrão Overleaf) e Destaque Exato (Silencioso)."""
+        """Sincronia Nativa + Verificação Inteligente (Fallback) + Prevenção de Seleção Gigante."""
         import subprocess, re, os
         from pathlib import Path
 
@@ -480,7 +480,7 @@ class PreviewPanel(ctk.CTkFrame):
                 break
         if not target_meta: return
 
-        # 1. Pega a palavra clicada (crucial para a verificação inteligente)
+        # 1. Pega a palavra clicada no PDF
         meta, idx = self._get_word_index_at_pos(canvas_x, canvas_y, max_dist=15)
         if meta and idx is not None:
             self.selected_text = self._highlight_and_extract(meta, idx, idx)
@@ -488,7 +488,7 @@ class PreviewPanel(ctk.CTkFrame):
             self.canvas.delete("selection_highlight")
             self.selected_text = ""
 
-        # 2. Coordenadas exatas em 72 DPI (Padrão Adobe/SyncTeX CLI)
+        # 2. Coordenadas exatas para o SyncTeX
         pdf_x = (canvas_x - target_meta["x_start"]) * target_meta["scale_factor"]
         pdf_y = (canvas_y - target_meta["y_start"]) * target_meta["scale_factor"]
         page_num = target_meta["page_num"]
@@ -513,15 +513,16 @@ class PreviewPanel(ctk.CTkFrame):
             if valid_results:
                 line_num, input_file = valid_results[0]
 
-                # Prevenção padrão contra o final do documento
                 total_lines = int(self.app.editor.index('end-1c').split('.')[0])
                 if line_num >= total_lines - 1 and len(valid_results) > 1:
                     line_num, input_file = valid_results[1]
 
                 # ========================================================
-                # VERIFICAÇÃO INTELIGENTE (SMART FALLBACK)
+                # SMART FALLBACK RESTAURADO!
+                # (Salva a pátria contra o bug de Backgrounds do SyncTeX)
                 # ========================================================
-                if self.selected_text and input_file:
+                word_to_find = self.selected_text.strip()
+                if word_to_find and input_file:
                     try:
                         target_path = Path(input_file).resolve()
                         if target_path.exists():
@@ -534,17 +535,20 @@ class PreviewPanel(ctk.CTkFrame):
                                     c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
                                 return re.sub(r'\W+', '', s).lower()
 
-                            word_clean = clean_str(self.selected_text)
+                            word_clean = clean_str(word_to_find)
                             target_idx = line_num - 1
 
+                            # Se a palavra não está na linha que o SyncTeX falou...
                             if target_idx < len(file_lines) and word_clean not in clean_str(file_lines[target_idx]):
                                 best_line = line_num
                                 min_dist = float('inf')
 
+                                # ...varre o documento pra achar a mais próxima!
                                 for i, line_content in enumerate(file_lines):
                                     if word_clean in clean_str(line_content):
                                         dist = abs(i - target_idx)
-                                        if dist < min_dist and dist < 60:
+                                        # Aumentei o raio pra 300 pra ignorar preâmbulos gigantes!
+                                        if dist < min_dist and dist < 300:
                                             min_dist = dist
                                             best_line = i + 1
 
@@ -564,27 +568,24 @@ class PreviewPanel(ctk.CTkFrame):
                 self.app.editor.focus_set()
                 self.app.editor.tag_remove("sel", "1.0", "end")
 
-                # DESTACA APENAS A PALAVRA ESPECÍFICA NO EDITOR
-                word_to_find = self.selected_text.strip()
+                # 5. DESTACA A PALAVRA COM PREVENÇÃO DE BUG DA "SELEÇÃO GIGANTE"
                 if word_to_find:
                     line_text = self.app.editor.get(f"{line_num}.0", f"{line_num}.end")
-                    start_col = line_text.find(word_to_find)
+                    start_col = line_text.lower().find(word_to_find.lower())
 
                     if start_col != -1:
+                        # Achou a palavra perfeita! Seleciona ela!
                         end_col = start_col + len(word_to_find)
                         start_pos = f"{line_num}.{start_col}"
                         end_pos = f"{line_num}.{end_col}"
                         self.app.editor.mark_set("insert", start_pos)
                         self.app.editor.tag_add("sel", start_pos, end_pos)
                     else:
+                        # Falhou porque a palavra tá hifenizada ou cheia de código LaTeX grudado?
+                        # APENAS JOGA O CURSOR! Sem blocão azul!
                         self.app.editor.mark_set("insert", f"{line_num}.0")
-                        self.app.editor.tag_add("sel", f"{line_num}.0", f"{line_num}.0 lineend")
                 else:
                     self.app.editor.mark_set("insert", f"{line_num}.0")
-                    self.app.editor.tag_add("sel", f"{line_num}.0", f"{line_num}.0 lineend")
-
-                # Logs de sucesso/falha de clique removidos para manter o terminal limpo!
 
         except Exception as e:
-            # Mantemos apenas o log de erro real (ex: SyncTeX não instalado)
             self.app.log_line(f"Erro SyncTeX: {e}")

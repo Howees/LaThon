@@ -202,6 +202,32 @@ class LaTeXEditor(ctk.CTkFrame):
         tb.tag_configure("find_highlight_all", background=Colors.HIGHLIGHT_ALL[idx], foreground="black")
         tb.tag_configure("find_highlight_current", background=Colors.HIGHLIGHT_CURRENT[idx], foreground="black")
 
+        # === NOVA LINHA AQUI ===
+        # Fundo vermelho bem suave no light mode, e um bordô elegante no dark mode
+        # Fundo vermelho bem suave no light mode, e um bordô elegante no dark mode
+        bg_error = "#5c1b1b" if is_dark else "#ffcccc"
+        tb.tag_configure("error_line", background=bg_error)
+
+        # === NOVA LINHA AQUI ===
+        # Fundo amarelado/laranja para os avisos
+        bg_warning = "#5c4d1b" if is_dark else "#fff2cc"
+        tb.tag_configure("warning_line", background=bg_warning)
+
+    def highlight_error_line(self, line_num):
+        """Pinta a linha inteira de vermelho quando ocorre um erro de compilação."""
+        self.tag_add("error_line", f"{line_num}.0", f"{line_num}.0 lineend")
+        self.see(f"{line_num}.0")
+
+    # === NOVA FUNÇÃO ===
+    def highlight_warning_line(self, line_num):
+        """Pinta a linha inteira de amarelo quando ocorre um aviso."""
+        self.tag_add("warning_line", f"{line_num}.0", f"{line_num}.0 lineend")
+
+    def clear_error_lines(self):
+        """Limpa as marcações de erro e aviso."""
+        self.tag_remove("error_line", "1.0", "end")
+        self.tag_remove("warning_line", "1.0", "end") # <- Adicione esta linha!
+
     def apply_syntax_highlighting(self):
         for tag in ["command", "comment", "label", "file_path"]: self.tag_remove(tag, "1.0", "end")
         try:
@@ -314,6 +340,7 @@ class LaTeXEditor(ctk.CTkFrame):
 
     def _on_text_changed(self, event=None):
         self.update_line_numbers()
+        self.clear_error_lines() # <- ADICIONE ESTA LINHA AQUI!
         self.event_generate("<<EditorTextChanged>>")
         if self.syntax_timer: self.after_cancel(self.syntax_timer)
         self.syntax_timer = self.after(800, self.apply_syntax_highlighting)

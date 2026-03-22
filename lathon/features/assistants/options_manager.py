@@ -10,6 +10,7 @@ class OptionsManager:
     """
     def __init__(self, app):
         self.app = app
+        self.show_warnings = True
 
     # --- GERENCIAMENTO DO TEMA ---
     def toggle_theme(self):
@@ -87,3 +88,12 @@ class OptionsManager:
             self.app.spell_checker.apply_spell_check()
         else:
             self.app.spell_checker.clear_state()
+
+    def set_warnings(self, active):
+        """Ativa ou desativa a exibição de avisos (warnings) no terminal."""
+        self.show_warnings = active
+        if hasattr(self.app, 'terminal_panel'):
+            if not active:
+                self.app.terminal_panel.log_line(">> Avisos (Warnings) desativados.", "warning")
+            else:
+                self.app.terminal_panel.log_line(">> Avisos (Warnings) ativados.", "success")

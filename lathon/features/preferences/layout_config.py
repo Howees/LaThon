@@ -66,5 +66,5 @@ class LayoutConfigDialog(BaseModal):
         self.lbl_total.configure(text="Total: 100% (Ajuste Automático)", text_color=Colors.LA)
 
     def _apply(self):
-        self.app.apply_layout_weights(self.left_val, self.center_val, self.pdf_val)
+        self.app.preferences_manager.apply_layout_weights(self.left_val, self.center_val, self.pdf_val)
         self._close_dialog()
