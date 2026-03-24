@@ -460,37 +460,127 @@ class PreviewPanel(ctk.CTkFrame):
             self.clipboard_append(self.selected_text)
             self.app.log_line(f"[Aviso] Texto copiado ({len(self.selected_text)} caracteres).")
 
-# ==========================================
+    # ==========================================
     # SYNCTEX: INVERSE SEARCH (DUPLO CLIQUE -> CÓDIGO)
     # ==========================================
     def _on_pdf_double_click(self, event):
-        """Sincronia Nativa + Verificação Inteligente (Fallback) + Prevenção de Seleção Gigante."""
-        import subprocess, re, os
+        """Sincronia Estável + Trava de Imagens e Abertura Blindada de Arquivos."""
+
+        import subprocess, re, os, unicodedata
         from pathlib import Path
 
-        if not self.page_metadata or not self.current_pdf_path: return
+        if not self.page_metadata or not self.current_pdf_path or not self.app.project_dir:
+            return
 
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
 
+        # ========================================================
+        # 0. IDENTIFICA PÁGINA
+        # ========================================================
         target_meta = None
         for meta in self.page_metadata:
             if meta["y_start"] <= canvas_y <= meta["y_end"]:
                 target_meta = meta
                 break
-        if not target_meta: return
+        if not target_meta:
+            return
 
-        # 1. Pega a palavra clicada no PDF
+        # ========================================================
+        # 1. DETECÇÃO E COSTURA DA PALAVRA
+        # ========================================================
         meta, idx = self._get_word_index_at_pos(canvas_x, canvas_y, max_dist=15)
-        if meta and idx is not None:
-            self.selected_text = self._highlight_and_extract(meta, idx, idx)
+
+        clicked_on_text = (meta is not None and idx is not None)
+
+        target_word_clean = ""
+        pdf_prev_words = []
+        pdf_next_words = []
+
+        if clicked_on_text:
+            words_on_page = self.text_cache.get(meta["page_num"], [])
+
+            # --- MÁGICA 1: EXPANSÃO CALIBRADA ---
+            start_idx = idx
+            end_idx = idx
+
+            # Expande para trás
+            while start_idx > 0:
+                prev_w = words_on_page[start_idx - 1]
+                curr_w = words_on_page[start_idx]
+
+                if abs(prev_w[3] - curr_w[3]) < 5:
+                    gap = curr_w[0] - prev_w[2]
+                    if -2 <= gap <= 1.5:
+                        start_idx -= 1
+                        continue
+                elif prev_w[4].endswith('-') and curr_w[1] >= prev_w[3] - 5:
+                    start_idx -= 1
+                    continue
+                break
+
+            # Expande para frente
+            while end_idx < len(words_on_page) - 1:
+                curr_w = words_on_page[end_idx]
+                next_w = words_on_page[end_idx + 1]
+
+                if abs(curr_w[3] - next_w[3]) < 5:
+                    gap = next_w[0] - curr_w[2]
+                    if -2 <= gap <= 1.5:
+                        end_idx += 1
+                        continue
+                elif curr_w[4].endswith('-') and next_w[1] >= curr_w[3] - 5:
+                    end_idx += 1
+                    continue
+                break
+
+            # Grifa a palavra COMPLETA unida na tela
+            self.selected_text = self._highlight_and_extract(meta, start_idx, end_idx)
+
+            # ========================================================
+            # 1.5 CONTEXTO DO PDF
+            # ========================================================
+            def clean_word(w):
+                if not w: return ""
+                s = ''.join(c for c in unicodedata.normalize('NFD', w) if unicodedata.category(c) != 'Mn')
+                return re.sub(r'[^a-zA-Z0-9]', '', s).lower()
+
+            for i in range(start_idx, end_idx + 1):
+                target_word_clean += clean_word(words_on_page[i][4])
+
+            is_small_word = len(target_word_clean) < 3
+
+            if (not target_word_clean or target_word_clean.isdigit() or not re.search(r'[a-zA-Z]', target_word_clean)):
+                return
+
+            def get_valid_pdf_words(start_i, step, count):
+                res = []
+                curr = start_i + step
+                while 0 <= curr < len(words_on_page) and len(res) < count:
+                    w = clean_word(words_on_page[curr][4])
+                    if w: res.append(w)
+                    curr += step
+                return res
+
+            pdf_prev_words = get_valid_pdf_words(start_idx, -1, 10)
+            pdf_next_words = get_valid_pdf_words(end_idx, 1, 10)
+
         else:
             self.canvas.delete("selection_highlight")
             self.selected_text = ""
 
-        # 2. Coordenadas exatas para o SyncTeX
+        is_figure_mode = not clicked_on_text
+
+        # ========================================================
+        # 2. COORDENADAS E SYNCTEX
+        # ========================================================
         pdf_x = (canvas_x - target_meta["x_start"]) * target_meta["scale_factor"]
         pdf_y = (canvas_y - target_meta["y_start"]) * target_meta["scale_factor"]
+
+        tex_factor = 72.27 / 72.0
+        pdf_x *= tex_factor
+        pdf_y *= tex_factor
+
         page_num = target_meta["page_num"]
 
         try:
@@ -500,92 +590,197 @@ class PreviewPanel(ctk.CTkFrame):
                 if exe_path.exists():
                     synctex_cmd = str(exe_path)
 
-            # 3. Consulta ao SyncTeX
             cmd = [synctex_cmd, 'edit', '-o', f"{page_num}:{pdf_x}:{pdf_y}:{self.current_pdf_path}"]
+
             flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            result = subprocess.run(cmd, capture_output=True, text=True, creationflags=flags)
+
+            # Adicionado encoding para tentar salvar os acentos do SyncTeX
+            result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore',
+                                    creationflags=flags)
 
             lines_found = re.findall(r'Line:(\d+)', result.stdout)
             files_found = re.findall(r'Input:(.+?)\n', result.stdout + "\n")
 
             valid_results = [(int(l), f.strip()) for l, f in zip(lines_found, files_found) if int(l) > 0]
 
-            if valid_results:
-                line_num, input_file = valid_results[0]
+            if not valid_results:
+                return
 
+            line_num, input_file = valid_results[0]
+
+            # ========================================================
+            # ABERTURA DIRETA DE ARQUIVOS (.tex) - BLINDADA CONTRA ACENTOS
+            # ========================================================
+            def open_sync_file(file_path_str):
+                if not file_path_str: return False
+                p = Path(file_path_str)
+
+                if not p.is_absolute():
+                    p = self.app.project_dir / p
+
+                # Se o arquivo não existir de cara, a culpa é dos acentos na pasta "Pré-textual"!
+                if not p.exists():
+                    # Pega só o nome do arquivo (ex: FolhadeAprovação) e limpa tudo que não é letra
+                    raw_stem = Path(file_path_str).stem
+                    clean_stem = re.sub(r'[^a-zA-Z0-9]', '', raw_stem).lower()
+
+                    if clean_stem:
+                        # Caça no projeto inteiro o arquivo com esse nome limpo
+                        for f in self.app.project_dir.rglob("*.tex"):
+                            f_clean = re.sub(r'[^a-zA-Z0-9]', '', f.stem).lower()
+                            if clean_stem in f_clean or f_clean in clean_stem:
+                                p = f
+                                break
+
+                # Abre apenas se for um arquivo .tex válido
+                if p.exists() and p.suffix.lower() == '.tex':
+                    if not self.app.active_file or p.resolve() != self.app.active_file.resolve():
+                        self.app._open_file(p)
+                    return True
+                return False
+
+            # Tenta abrir o arquivo!
+            open_sync_file(input_file)
+
+            # Recalcula as linhas DEPOIS de o arquivo ser aberto, pois o tamanho mudou
+            total_lines = int(self.app.editor.index('end-1c').split('.')[0])
+
+            if line_num >= total_lines - 1 and len(valid_results) > 1:
+                line_num, input_file = valid_results[1]
+                open_sync_file(input_file)
                 total_lines = int(self.app.editor.index('end-1c').split('.')[0])
-                if line_num >= total_lines - 1 and len(valid_results) > 1:
-                    line_num, input_file = valid_results[1]
 
-                # ========================================================
-                # SMART FALLBACK RESTAURADO!
-                # (Salva a pátria contra o bug de Backgrounds do SyncTeX)
-                # ========================================================
-                word_to_find = self.selected_text.strip()
-                if word_to_find and input_file:
-                    try:
-                        target_path = Path(input_file).resolve()
-                        if target_path.exists():
-                            with open(target_path, 'r', encoding='utf-8') as f:
-                                file_lines = f.readlines()
+            self.app._switch_center_view('editor')
+            self.app.editor.tag_remove("sel", "1.0", "end")
 
-                            import unicodedata
-                            def clean_str(s):
-                                s = ''.join(
-                                    c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
-                                return re.sub(r'\W+', '', s).lower()
+            # ========================================================
+            # NOVA TRAVA: VERIFICA DIRETAMENTE A LINHA DO SYNCTEX
+            # ========================================================
+            sync_line_text = self.app.editor.get(f"{line_num}.0", f"{line_num}.end").lower()
+            if any(tag in sync_line_text for tag in
+                   ["\\includegraphics", "\\begin{figure}", "\\caption", "\\begin{table}"]):
+                clicked_on_text = False
+                is_figure_mode = True
+                self.canvas.delete("selection_highlight")
+                self.selected_text = ""
 
-                            word_clean = clean_str(word_to_find)
-                            target_idx = line_num - 1
+            # ========================================================
+            # 3. FALLBACK (TEXTO OU FIGURA)
+            # ========================================================
+            start_search_line = max(1, line_num - 300)
+            end_search_line = min(total_lines, line_num + 300)
 
-                            # Se a palavra não está na linha que o SyncTeX falou...
-                            if target_idx < len(file_lines) and word_clean not in clean_str(file_lines[target_idx]):
-                                best_line = line_num
-                                min_dist = float('inf')
+            chunk_text = self.app.editor.get(f"{start_search_line}.0", f"{end_search_line}.end")
 
-                                # ...varre o documento pra achar a mais próxima!
-                                for i, line_content in enumerate(file_lines):
-                                    if word_clean in clean_str(line_content):
-                                        dist = abs(i - target_idx)
-                                        # Aumentei o raio pra 300 pra ignorar preâmbulos gigantes!
-                                        if dist < min_dist and dist < 300:
-                                            min_dist = dist
-                                            best_line = i + 1
+            # ========================================================
+            # 🖼️ MODO FIGURA
+            # ========================================================
+            if is_figure_mode:
+                lines = chunk_text.splitlines()
+                best_line = None
+                best_score = float('inf')
 
-                                line_num = best_line
-                    except:
-                        pass  # Ignora falhas silenciosas do fallback
-                # ========================================================
+                for i, line in enumerate(lines):
+                    l = line.lower()
+                    if any(tag in l for tag in ["\\includegraphics", "\\begin{figure}", "\\caption", "\\begin{table}"]):
+                        real_line = start_search_line + i
+                        dist = abs(real_line - line_num)
+                        if dist < best_score:
+                            best_score = dist
+                            best_line = real_line
 
-                if input_file:
-                    f_path = Path(input_file).resolve()
-                    if f_path.exists() and f_path != self.app.active_file.resolve():
-                        self.app._open_file(f_path)
+                if best_line:
+                    pos = f"{best_line}.0"
+                    self.app.editor.see(pos)
+                    self.app.editor.mark_set("insert", pos)
+                    self.app.editor.tag_add("sel", f"{best_line}.0", f"{best_line}.0 lineend")
+                    self.app.editor.focus_set()
+                return
 
-                # 4. Rola o editor para a linha corrigida
-                self.app._switch_center_view('editor')
-                self.app.editor.see(f"{line_num}.0")
+            # ========================================================
+            # 🔤 MODO TEXTO
+            # ========================================================
+            editor_words = []
+
+            for m in re.finditer(r'[a-zA-ZÀ-ÿ0-9]+', chunk_text):
+                if m.start() > 0 and chunk_text[m.start() - 1] == '\\':
+                    continue
+
+                cln = clean_word(m.group())
+                if cln:
+                    editor_words.append({
+                        'word_clean': cln,
+                        'start': m.start(),
+                        'end': m.end()
+                    })
+
+            best_match_idx = -1
+            best_score = -float('inf')
+
+            MIN_SCORE = 3000 if is_small_word else 2000
+
+            for i, ew in enumerate(editor_words):
+                is_match = (ew['word_clean'] == target_word_clean) or \
+                           (len(ew['word_clean']) > 1 and len(target_word_clean) > 1 and \
+                            (ew['word_clean'] in target_word_clean or target_word_clean in ew['word_clean']))
+
+                if not is_match:
+                    continue
+
+                score = 0
+                hits = 0
+
+                editor_prev_words = [w['word_clean'] for w in editor_words[max(0, i - 15):i]]
+                editor_next_words = [w['word_clean'] for w in editor_words[i + 1:min(len(editor_words), i + 16)]]
+
+                weight = 2000 if is_small_word else 1000
+
+                for pw in pdf_prev_words:
+                    if pw in editor_prev_words:
+                        score += weight
+                        hits += 1
+
+                for nw in pdf_next_words:
+                    if nw in editor_next_words:
+                        score += weight
+                        hits += 1
+
+                if is_small_word and hits < 2:
+                    continue
+
+                lines_before = chunk_text[:ew['start']].count('\n')
+                match_line_num = start_search_line + lines_before
+                dist = abs(match_line_num - line_num)
+                score -= dist
+
+                if score > best_score:
+                    best_score = score
+                    best_match_idx = i
+
+            if best_match_idx != -1 and best_score >= MIN_SCORE:
+                ew = editor_words[best_match_idx]
+
+                lines_before_start = chunk_text[:ew['start']].count('\n')
+                last_newline_start = chunk_text.rfind('\n', 0, ew['start'])
+                col_start = ew['start'] - (last_newline_start + 1)
+                final_line_start = start_search_line + lines_before_start
+
+                lines_before_end = chunk_text[:ew['end']].count('\n')
+                last_newline_end = chunk_text.rfind('\n', 0, ew['end'])
+                col_end = ew['end'] - (last_newline_end + 1)
+                final_line_end = start_search_line + lines_before_end
+
+                start_pos = f"{final_line_start}.{col_start}"
+                end_pos = f"{final_line_end}.{col_end}"
+
+                self.app.editor.see(start_pos)
+                self.app.editor.mark_set("insert", start_pos)
+                self.app.editor.tag_add("sel", start_pos, end_pos)
                 self.app.editor.focus_set()
-                self.app.editor.tag_remove("sel", "1.0", "end")
-
-                # 5. DESTACA A PALAVRA COM PREVENÇÃO DE BUG DA "SELEÇÃO GIGANTE"
-                if word_to_find:
-                    line_text = self.app.editor.get(f"{line_num}.0", f"{line_num}.end")
-                    start_col = line_text.lower().find(word_to_find.lower())
-
-                    if start_col != -1:
-                        # Achou a palavra perfeita! Seleciona ela!
-                        end_col = start_col + len(word_to_find)
-                        start_pos = f"{line_num}.{start_col}"
-                        end_pos = f"{line_num}.{end_col}"
-                        self.app.editor.mark_set("insert", start_pos)
-                        self.app.editor.tag_add("sel", start_pos, end_pos)
-                    else:
-                        # Falhou porque a palavra tá hifenizada ou cheia de código LaTeX grudado?
-                        # APENAS JOGA O CURSOR! Sem blocão azul!
-                        self.app.editor.mark_set("insert", f"{line_num}.0")
-                else:
-                    self.app.editor.mark_set("insert", f"{line_num}.0")
+            else:
+                self.app.editor.see(f"{line_num}.0")
+                self.app.editor.mark_set("insert", f"{line_num}.0")
+                self.app.editor.focus_set()
 
         except Exception as e:
             self.app.log_line(f"Erro SyncTeX: {e}")
