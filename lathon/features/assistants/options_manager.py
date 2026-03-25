@@ -16,6 +16,10 @@ class OptionsManager:
     def toggle_theme(self):
         ThemeManager.toggle_theme(self.app)
 
+    def set_color_theme(self, theme_name):
+        """Altera a paleta de cores (black, green, blue)."""
+        ThemeManager.set_color_theme(self.app, theme_name)
+
     # --- GERENCIAMENTO DE BUSCA (FIND/REPLACE) ---
     def show_find_dialog(self):
         # Acessa o find_handler que está instanciado no app

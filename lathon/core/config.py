@@ -25,6 +25,12 @@ class ConfigManager:
     def _get_default_structure(self):
         """Retorna a estrutura base com comentários simulados para organizar o JSON."""
         return {
+            "_comment_appearance": "Configuracoes de cores e tema",
+            "appearance": {
+                "color_theme": "black",  # Opções: "black", "green", "blue"
+                "mode": "Dark"  # Opções: "Light", "Dark"
+            },
+
             "_comment_recents": "Lista dos ultimos projetos abertos (maximo 5)",
             "recents": [],
 
@@ -204,4 +210,25 @@ class ConfigManager:
         if "markers" not in data:
             data["markers"] = {}
         data["markers"][file_path] = markers_list
+        self._save_all(data)
+
+    # ==========================================
+    # APARÊNCIA (CORES E MODO CLARO/ESCURO)
+    # ==========================================
+    def get_appearance(self):
+        data = self._load_all()
+        app_data = data.get("appearance", {})
+
+        # Fallbacks caso o arquivo seja antigo
+        if "color_theme" not in app_data: app_data["color_theme"] = "black"
+        if "mode" not in app_data: app_data["mode"] = "Dark"
+
+        return app_data
+
+    def update_appearance(self, **kwargs):
+        data = self._load_all()
+        if "appearance" not in data:
+            data["appearance"] = {}
+
+        data["appearance"].update(kwargs)
         self._save_all(data)

@@ -40,17 +40,35 @@ class MiniOverleaf(ctk.CTk):
         super().__init__()
 
         self.title("LaThon LaTeX Editor")
-
         Icons.set_window_icon(self)
-
-        self.geometry("1200x800")
-
         self.config = ConfigManager()
+
+        # === MÁGICA DAS CORES E POSIÇÃO DA JANELA ===
+        appearance = self.config.get_appearance()
+        root_path = self.config.get_root_path()
+
+        if not root_path or not __import__("os").path.exists(root_path):
+            # TELA DE BOAS-VINDAS
+            Colors.load_theme("black")
+            ctk.set_appearance_mode("Dark")
+            w, h = 550, 500
+        else:
+            # NORMAL
+            Colors.load_theme(appearance.get("color_theme", "black"))
+            ctk.set_appearance_mode(appearance.get("mode", "Dark"))
+            w, h = 1200, 800
+
+        # Pega a resolução e centraliza de forma limpa e nativa!
+        x = int((self.winfo_screenwidth() / 2) - (w / 2))
+        y = int((self.winfo_screenheight() / 2) - (h / 2))
+        self.geometry(f"{w}x{h}+{x}+{y}")
+        # ============================================
+
         self.latex_compiler = find_latex_compiler()
         self.queue = queue.Queue()
         self.project_dir = None
         self.active_file = None
-        self.active_compiler_thread = None  # Thread do compilador para poder ser morta
+        self.active_compiler_thread = None
         self.download_notification_window = None
 
         self.grid_columnconfigure(0, weight=1)
@@ -62,21 +80,17 @@ class MiniOverleaf(ctk.CTk):
         self.scroll_conf = {"scrollbar_button_color": Colors.SCROLL_BTN,
                             "scrollbar_button_hover_color": Colors.SCROLL_HOVER}
 
-        # Contrata o gerente PRIMEIRO!
         self.preferences_manager = PreferencesManager(self)
 
-        # Agora sim manda construir a interface
         self._build_ui()
         self._bind_events()
 
-        # E depois da interface pronta, aplica a fonte no editor
         layout_cfg = self.config.get_layout()
         self.preferences_manager.apply_font_config(layout_cfg.get("font_family"), layout_cfg.get("font_size"))
         self.editor.update_colors()
 
         if not self.latex_compiler: messagebox.showerror("Aviso", "Compilador LaTeX não encontrado.")
 
-        # Inicia a fila de mensagens
         self.after(100, self.process_queue)
 
     def _build_ui(self):
@@ -100,7 +114,12 @@ class MiniOverleaf(ctk.CTk):
         menu_btn_conf = {"height": 26, "width": 30, "fg_color": "transparent",
                          "text_color": Colors.BTN_TRANSPARENT_TEXT,
                          "hover_color": Colors.BTN_HOVER, "font": Fonts.UI}
-        menu_bg = Colors.BG_MAIN[1]
+
+        # === CORREÇÃO: Pega a cor correta dependendo se é Claro ou Escuro ===
+        idx = 1 if ctk.get_appearance_mode() == "Dark" else 0
+        menu_bg = Colors.BG_MAIN[idx]
+        menu_fg = Colors.TEXT_NORMAL[idx]
+        # ====================================================================
 
         # BOTÃO VOLTAR
         self.btn_back = ctk.CTkButton(top_inner, text=" Voltar", image=Icons.get_ctk_image("back.png", size=(18, 18)),
@@ -110,12 +129,15 @@ class MiniOverleaf(ctk.CTk):
         # DIVISÓRIA VERTICAL ELEGANTE
         ctk.CTkFrame(top_inner, width=1, height=20, fg_color=Colors.BORDER).pack(side="left", padx=(5, 10))
 
-        # Inserir
+        # Inserir (Use o menu_bg e menu_fg nas configurações do tk.Menu!)
         self.btn_insert = ctk.CTkButton(top_inner, text=" Inserir", image=Icons.get_ctk_image("insert.png"),
                                         command=lambda: self._popup_menu(self.menu_insert, self.btn_insert),
                                         **menu_btn_conf)
         self.btn_insert.pack(side="left", padx=2)
-        self.menu_insert = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+
+        # CORREÇÃO AQUI -> bg=menu_bg, fg=menu_fg
+        self.menu_insert = tk.Menu(self, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=Colors.THON)
+
         self.menu_insert.add_command(label=" Tabela Básica...", image=Icons.get_treeview_icon("table.png"),
                                      compound="left", command=lambda: self.insert_manager.open_table_wizard())
         self.menu_insert.add_command(label=" Figura Simples...", image=Icons.get_treeview_icon("figure.png"),
@@ -131,7 +153,7 @@ class MiniOverleaf(ctk.CTk):
                                          command=lambda: self._popup_menu(self.menu_options, self.btn_options),
                                          **menu_btn_conf)
         self.btn_options.pack(side="left", padx=2)
-        self.menu_options = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_options = tk.Menu(self, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=Colors.THON)
 
         # Variáveis do Menu
         self.var_chap = tk.BooleanVar(value=False)
@@ -161,6 +183,17 @@ class MiniOverleaf(ctk.CTk):
                                           command=lambda: self.options_manager.set_warnings(self.var_warnings.get()))
 
         self.menu_options.add_separator()
+        # === NOVO: SUBMENU DE CORES DO TEMA ===
+        self.submenu_theme = tk.Menu(self.menu_options, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=Colors.THON)
+        self.submenu_theme.add_command(label=" Classic (Preto/Cinza)",
+                                       command=lambda: self.options_manager.set_color_theme("black"))
+        self.submenu_theme.add_command(label=" La (Verde)",
+                                       command=lambda: self.options_manager.set_color_theme("green"))
+        self.submenu_theme.add_command(label=" Thon (Azul)",
+                                       command=lambda: self.options_manager.set_color_theme("blue"))
+
+        self.menu_options.add_cascade(label=" Cor do Tema...", menu=self.submenu_theme,
+                                      image=Icons.get_treeview_icon("layout.png"), compound="left")
         self.menu_options.add_command(label=" Alternar Tema (Ctrl+T)", image=Icons.get_treeview_icon("theme.png"),
                                       compound="left", command=lambda: self.options_manager.toggle_theme())
 
@@ -169,7 +202,7 @@ class MiniOverleaf(ctk.CTk):
                                         command=lambda: self._popup_menu(self.menu_export, self.btn_export),
                                         **menu_btn_conf)
         self.btn_export.pack(side="left", padx=2)
-        self.menu_export = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_export = tk.Menu(self, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=Colors.THON)
         self.menu_export.add_command(label=" PDF (Ctrl+E)", image=Icons.get_treeview_icon("pdf.png"), compound="left",
                                      command=lambda: ProjectExporter.export_pdf(self.project_dir, self.active_file))
         self.menu_export.add_command(label=" ZIP (Ctrl+Shift+E)", image=Icons.get_treeview_icon("zip.png"),
@@ -180,7 +213,7 @@ class MiniOverleaf(ctk.CTk):
                                         command=lambda: self._popup_menu(self.menu_config, self.btn_config),
                                         **menu_btn_conf)
         self.btn_config.pack(side="left", padx=2)
-        self.menu_config = tk.Menu(self, tearoff=0, bg=menu_bg, fg="white", activebackground=Colors.THON)
+        self.menu_config = tk.Menu(self, tearoff=0, bg=menu_bg, fg=menu_fg, activebackground=Colors.THON)
         self.menu_config.add_command(label=" Corretor Ortográfico...", image=Icons.get_treeview_icon("spell.png"),
                                      compound="left", command=lambda: self.preferences_manager.open_spell_config())
         self.menu_config.add_separator()
@@ -275,6 +308,9 @@ class MiniOverleaf(ctk.CTk):
         self.options_manager.set_chapter_highlight(new_val)
 
     def _toggle_theme_shortcut(self, event=None):
+        root_path = self.config.get_root_path()
+        if not root_path or not __import__("os").path.exists(root_path):
+            return "break"  # Bloqueia o Ctrl+T na tela de boas-vindas
         self.options_manager.toggle_theme()
 
     def _bind_events(self):
@@ -433,7 +469,8 @@ class MiniOverleaf(ctk.CTk):
 
         if self.latex_compiler:
             try:
-                subprocess.run(
+                # Mudança crucial de .run para .Popen para não bloquear a Interface
+                subprocess.Popen(
                     [str(Path(self.latex_compiler).parent / "miktex-config.exe"), 'set', '--user', 'AutoInstall=1'],
                     creationflags=subprocess.CREATE_NO_WINDOW)
             except:

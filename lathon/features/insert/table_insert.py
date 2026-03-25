@@ -5,7 +5,7 @@ import customtkinter as ctk
 from lathon.ui.widgets.tooltip import ToolTip
 
 from lathon.ui.widgets.base_modal import BaseModal
-from lathon.ui.design import Colors, Fonts, resource_path
+from lathon.ui.design import Colors, Fonts, resource_path, Icons
 
 
 class BaseTableDialog(BaseModal):
@@ -434,7 +434,9 @@ class ImageTableInputDialog(BaseTableDialog):
                 img_tooltip.text = f"Imagem: {os.path.basename(cell_frame.full_path)}"
                 try:
                     big_sz = (24, 24) if is_micro else ((32, 32) if is_small else (48, 48))
-                    img_display.configure(text="", image=ctk.CTkImage(light_image=pil_add, dark_image=pil_add, size=big_sz), compound="center")
+                    # Pegamos a versão GIGANTE da imagem direto do nosso cache inteligente
+                    big_icon = Icons.get_ctk_image("image.png", size=big_sz)
+                    img_display.configure(text="", image=big_icon, compound="center")
                 except Exception:
                     img_display.configure(text="IMG", image=None, compound="center")
 
