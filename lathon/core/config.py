@@ -73,10 +73,12 @@ class ConfigManager:
     # PROJETOS RECENTES
     # ==========================================
     def get_recents(self):
+        """Pega os arquivos recentes"""
         data = self._load_all()
         return data.get("recents", [])
 
     def add_recent(self, project_path):
+        """Adiciona arquivos aos recentes"""
         data = self._load_all()
         recents = data.get("recents", [])
         str_path = str(project_path)
@@ -92,6 +94,7 @@ class ConfigManager:
     # LAYOUT DA TELA E FONTES
     # ==========================================
     def get_layout(self):
+        """Pega o layout salvo"""
         data = self._load_all()
         layout_data = data.get("layout", {})
 
@@ -106,7 +109,7 @@ class ConfigManager:
         return layout_data
 
     def update_layout(self, **kwargs):
-        """Exemplo de uso: update_layout(left=20, pdf=30) ou update_layout(font_size=14)"""
+        """Atualiza layout"""
         data = self._load_all()
         if "layout" not in data:
             data["layout"] = {}
@@ -129,6 +132,7 @@ class ConfigManager:
         return spell_data
 
     def update_spell(self, **kwargs):
+        """Atualiza o corretor"""
         data = self._load_all()
         if "spell" not in data:
             data["spell"] = {}
@@ -216,6 +220,7 @@ class ConfigManager:
     # APARÊNCIA (CORES E MODO CLARO/ESCURO)
     # ==========================================
     def get_appearance(self):
+        """Pega a aparencia atual"""
         data = self._load_all()
         app_data = data.get("appearance", {})
 
@@ -226,6 +231,7 @@ class ConfigManager:
         return app_data
 
     def update_appearance(self, **kwargs):
+        """Atualiza aparencia"""
         data = self._load_all()
         if "appearance" not in data:
             data["appearance"] = {}

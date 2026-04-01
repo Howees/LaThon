@@ -20,19 +20,18 @@ class ThemeManager:
         idx = 1 if is_dark else 0
 
         # ========================================================
-        # 1. ATUALIZA COMPONENTES GLOBAIS/PERSISTENTES
-        # (Estes existem desde o início e ficam escondidos, então DEVEM atualizar sempre!)
+        # 1. ATUALIZA COMPONENTES GLOBAIS
         # ========================================================
 
         # A) Fundo do frame principal
         if hasattr(app, 'main_frame'):
             app.main_frame.configure(fg_color=Colors.BG_MAIN[idx])
 
-        # B) Árvore de Arquivos (Treeview é do Tkinter Clássico e precisa de estilo manual)
+        # B) Árvore de Arquivos
         if hasattr(app, 'file_panel'):
             app.file_panel.style_treeview()
 
-        # C) Menus Superiores (tk.Menu Clássico não obedece ao CustomTkinter automaticamente)
+        # C) Menus Superiores
         menu_bg = Colors.BG_MAIN[idx]
         menu_fg = Colors.TEXT_NORMAL[idx]
 
@@ -55,19 +54,15 @@ class ThemeManager:
                 app.editor.update_colors()
                 app.editor.apply_syntax_highlighting()
 
+            # >>> ADICIONE ESTAS DUAS LINHAS AQUI <<<
+            if hasattr(app, 'terminal_panel'):
+                app.terminal_panel.update_colors()
+
             if hasattr(app, 'chapter_highlighter') and app.chapter_highlighter.is_active:
                 app.chapter_highlighter.update_colors()
                 app.chapter_highlighter.apply()
-
-            if hasattr(app, 'autocomplete_handler') and app.autocomplete_handler.suggestions_listbox:
-                app.autocomplete_handler.suggestions_listbox.config(
-                    bg=Colors.BG_PANEL[idx],
-                    fg=Colors.TEXT_NORMAL[idx]
-                )
         else:
             # O usuário está nas Telas de Repositório/Projetos
-            # O CustomTkinter vai trocar a cor dos frames sozinho, mas nós mandamos
-            # a tela se renderizar de novo para recriar os botões de menu (tk.Menu) com a cor certa.
             if hasattr(app, 'welcome_screen'):
                 app.welcome_screen.configure(fg_color=Colors.BG_MAIN)
                 app.welcome_screen._render()

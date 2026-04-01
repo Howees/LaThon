@@ -5,34 +5,47 @@ from lathon.features.insert.formula_insert import FormulaInputDialog
 
 
 class InsertManager:
-    """Gerencia a criação e inserção dos blocos de código gerados pelos Assistentes."""
+    """
+    insert_manager.py
+    Orquestra a lógica de inserção e garante a integridade do preâmbulo do documento.
+    Também possui um sistema inteligente de injeção automática de dependências (packages).
+    """
 
     def __init__(self, app, editor):
         self.app = app
         self.editor = editor
 
     def _ensure_package(self, package_name):
-        """Verifica se o pacote já existe no documento e injeta automaticamente se faltar."""
+        """
+        Verifica se um pacote essencial (ex: graphicx, amsmath) já está declarado no código.
+        Se não estiver, tenta injetar automaticamente antes do '\\begin{document}' ou avisa o usuário.
+        """
         content = self.editor.get("1.0", "end")
         if f"\\usepackage{{{package_name}}}" in content or f"{{{package_name}}}" in content:
             return
 
+        # Tenta injetar logo acima da abertura do documento
         idx = self.editor._textbox.search(r"\begin{document}", "1.0", stopindex="end")
         if idx:
             self.editor.insert(idx, f"\\usepackage{{{package_name}}}\n")
             return
 
+        # Fallback: Tenta injetar logo abaixo da classe do documento
         idx_doc = self.editor._textbox.search(r"\documentclass", "1.0", stopindex="end")
         if idx_doc:
             self.editor.insert(f"{idx_doc} lineend", f"\n\\usepackage{{{package_name}}}")
             return
 
-        messagebox.showinfo("Dependência Detectada",
-                            f"O seu código gerado requer o pacote '{package_name}'.\n\n"
-                            f"Por favor, verifique se o comando "
-                            f"'\\usepackage{{{package_name}}}' está no preâmbulo do seu arquivo principal (main.tex).")
+        # Último caso: Documento atípico (ex: sub-arquivos \input), avisa o usuário
+        messagebox.showinfo(
+            "Dependência Detectada",
+            f"O seu código gerado requer o pacote '{package_name}'.\n\n"
+            f"Por favor, verifique se o comando '\\usepackage{{{package_name}}}' "
+            f"está no preâmbulo do seu arquivo principal (main.tex)."
+        )
 
     def open_table_wizard(self):
+        """Abre o construtor visual de tabelas de texto e converte o grid em código."""
         res = TableInputDialog(self.app).get_data()
         if res:
             matrix, col_widths, cap, lbl, valign, halign, border_style = res
@@ -40,6 +53,7 @@ class InsertManager:
 
             self._ensure_package("array")
 
+            # Avaliação de dependências baseadas no estilo visual escolhido
             needs_booktabs = border_style in ["Booktabs", "Booktabs Duplo", "Zebrada", "Zebrada + Cabeçalho",
                                               "Cabeçalho Destacado"]
             needs_xcolor = "Zebrada" in border_style or "Cabeçalho" in border_style
@@ -57,7 +71,7 @@ class InsertManager:
             v_col = v_map.get(valign, "m")
             h_cmd = h_map.get(halign, "\\centering")
 
-            # --- Lógica de Bordas Verticais (Layout) ---
+            # Lógica de Layout de Colunas (Cálculo de largura relativa)
             col_sep = "|" if border_style in ["Grade", "Zebrada + Grade"] else (
                 "||" if border_style == "Grade Dupla" else "")
 
@@ -68,7 +82,7 @@ class InsertManager:
 
             layout = col_sep + col_sep.join(layout_parts) + col_sep if col_sep else "".join(layout_parts)
 
-            # --- Lógica de Linha Superior ---
+            # Construção das linhas delimitadoras superiores
             top_line = ""
             if border_style in ["Grade", "Horizontais", "Zebrada + Grade"]:
                 top_line = "\\hline\n"
@@ -81,6 +95,7 @@ class InsertManager:
             if "Zebrada" in border_style: latex += "\t\\rowcolors{2}{gray!15}{white}\n"
             latex += f"\t\\begin{{tabular}}{{{layout}}}\n\t\t{top_line}"
 
+            # Geração das células e preenchimento dos dados
             for i, row in enumerate(matrix):
                 if "Cabeçalho" in border_style and i == 0: latex += "\t\t\\rowcolor{blue!15}\n"
 
@@ -101,6 +116,7 @@ class InsertManager:
                 row_content = " & ".join(parts)
                 end_cmd = " \\tabularnewline\n" if is_resized else " \\\\\n"
 
+                # Linhas delimitadoras do meio
                 current_row_sep = ""
                 if border_style in ["Grade", "Horizontais", "Zebrada + Grade"]:
                     current_row_sep = "\t\t\\hline\n"
@@ -113,20 +129,20 @@ class InsertManager:
 
                 latex += f"\t\t{row_content}{end_cmd}{current_row_sep}"
 
-            # --- Lógica de Linha Inferior ---
             if needs_booktabs: latex += f"\t\t\\bottomrule\n"
 
             latex += f"\t\\end{{tabular}}\n\t\\caption{{{cap}}}\n\t\\label{{{lbl}}}\n\\end{{table}}\n"
             self.editor.insert("insert", latex)
 
     def open_image_table_wizard(self):
+        """Abre o construtor focado em painéis de figuras (Subfigures encadeadas)."""
         res = ImageTableInputDialog(self.app).get_data()
         if res:
             matrix, col_widths, cap, lbl, valign, halign, border_style = res
             if not matrix: return
 
             self._ensure_package("array")
-            self._ensure_package("graphicx")  # <- MUDANÇA: Garante pacote de imagens
+            self._ensure_package("graphicx")
 
             needs_booktabs = border_style in ["Booktabs", "Booktabs Duplo", "Zebrada", "Zebrada + Cabeçalho",
                                               "Cabeçalho Destacado"]
@@ -172,6 +188,7 @@ class InsertManager:
                         val = val.replace('\n', ' \\newline ') if val else '~'
                         parts.append(f"{h_cmd}\\arraybackslash " + val)
                     else:
+                        # Tratamento específico para as células que contêm arquivo de imagem
                         path = cell["value"]
                         clean_path = path.replace("\\", "/") if path else "SUA_FIGURA_AQUI"
                         parts.append(f"{h_cmd}\\arraybackslash \\includegraphics[width=1\\linewidth]{{{clean_path}}}")
@@ -196,6 +213,7 @@ class InsertManager:
             self.editor.insert("insert", latex)
 
     def open_figure_wizard(self):
+        """Coleta configurações simples de tamanho/legenda e insere a figura básica."""
         res = FigureInputDialog(self.app).get_data()
         if res:
             path, w_percent, cap, lbl = res
@@ -204,31 +222,31 @@ class InsertManager:
             except ValueError:
                 w_float = 0.8
 
-            self._ensure_package("graphicx")  # <- MUDANÇA: Garante pacote de imagens
+            self._ensure_package("graphicx")
 
             latex = f"\\begin{{figure}}[h]\n\t\\centering\n\t\\includegraphics[width={w_float}\\textwidth]{{{path}}}\n\t\\caption{{{cap}}}\n\t\\label{{{lbl}}}\n\\end{{figure}}\n"
             self.editor.insert("insert", latex)
 
     def open_formula_wizard(self):
+        """Converte a montagem matemática visual para código LaTeX Inline ou Equation."""
         res = FormulaInputDialog(self.app).get_data()
         if res:
             mode, formula = res
             if not formula.strip(): return
 
-            # MUDANÇA: Listas super atualizadas com todas as abas!
+            # Lista mestre de triggers que exigem pacotes matemáticos especializados
             amsmath_triggers = ["pmatrix", "bmatrix", "vmatrix", "cases", "\\binom", "\\frac", "\\int", "\\sum",
                                 "\\lim", "\\partial", "\\prod"]
             amssymb_triggers = ["\\infty", "\\approx", "\\neq", "\\leq", "\\geq", "\\pm", "\\times", "\\div",
                                 "\\rightarrow", "\\leftarrow", "\\in", "\\notin", "\\subset", "\\cup", "\\cap",
                                 "\\emptyset", "\\forall", "\\exists"]
 
-            if any(x in formula for x in amsmath_triggers):
-                self._ensure_package("amsmath")
-            if any(x in formula for x in amssymb_triggers):
-                self._ensure_package("amssymb")
+            if any(x in formula for x in amsmath_triggers): self._ensure_package("amsmath")
+            if any(x in formula for x in amssymb_triggers): self._ensure_package("amssymb")
 
             if mode == "inline":
                 latex = f"${formula.strip()}$ "
             else:
                 latex = f"\\begin{{equation}}\n\t{formula.strip()}\n\t\\label{{eq:}}\n\\end{{equation}}\n"
+
             self.editor.insert("insert", latex)

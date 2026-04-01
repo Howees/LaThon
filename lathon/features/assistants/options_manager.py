@@ -3,32 +3,26 @@ from lathon.ui.widgets.base_modal import BaseModal
 from lathon.ui.design import Colors, Fonts
 import customtkinter as ctk
 
+
 class OptionsManager:
-    """
-    Gerencia as ações diretas do Menu 'Opções'.
-    É a ponte entre o main_window.py e os módulos da pasta assistants.
-    """
+    """Controlador que vincula componentes de UI aos módulos em background."""
+
     def __init__(self, app):
         self.app = app
         self.show_warnings = True
 
-    # --- GERENCIAMENTO DO TEMA ---
     def toggle_theme(self):
         ThemeManager.toggle_theme(self.app)
 
     def set_color_theme(self, theme_name):
-        """Altera a paleta de cores (black, green, blue)."""
         ThemeManager.set_color_theme(self.app, theme_name)
 
-    # --- GERENCIAMENTO DE BUSCA (FIND/REPLACE) ---
     def show_find_dialog(self):
-        # Acessa o find_handler que está instanciado no app
         if hasattr(self.app, 'find_handler'):
             self.app.find_handler.show_dialog()
 
-    # --- GERENCIAMENTO DA LISTA DE MARCAÇÕES ---
     def open_markers_list(self):
-        """Abre a lista de marcações instanciando o BaseModal dentro da função."""
+        """Modal de Tabela (Dashboard) listando todos os comentários vinculados ao texto."""
         modal = BaseModal(self.app, "Lista de Marcações", 500, 400)
         ctk.CTkLabel(modal.border_frame, text="Anotações no Documento", font=Fonts.UI_TITLE).pack(anchor="w", padx=20,
                                                                                                   pady=(20, 5))
@@ -61,6 +55,7 @@ class OptionsManager:
                                                                                                 expand=True)
 
                 def goto_line(t=idx):
+                    """Transporta o cursor para o trecho exato da anotação, mesmo em textos imensos."""
                     self.app.editor.see(t)
                     self.app.editor.mark_set("insert", t)
                     modal._close_dialog()
@@ -69,9 +64,12 @@ class OptionsManager:
                               hover_color=Colors.BTN_PRIMARY_HOVER, command=goto_line).pack(side="right")
 
         modal._create_action_buttons("Fechar", modal._close_dialog)
-        modal.get_data()  # Trava a janela até o usuário fechar
+        modal.get_data()
 
-    # --- ATIVAÇÃO/DESATIVAÇÃO DOS ASSISTENTES (TOGGLES) ---
+        # ==========================================
+
+    # COMANDOS DE ATIVAÇÃO GERAL (TOGGLES)
+    # ==========================================
     def set_chapter_highlight(self, active):
         if not hasattr(self.app, 'chapter_highlighter'): return
         self.app.chapter_highlighter.is_active = active
@@ -94,7 +92,7 @@ class OptionsManager:
             self.app.spell_checker.clear_state()
 
     def set_warnings(self, active):
-        """Ativa ou desativa a exibição de avisos (warnings) no terminal."""
+        """Determina se o Terminal irá omitir 'Overfull hbox' e 'Warnings' padrão do compilador."""
         self.show_warnings = active
         if hasattr(self.app, 'terminal_panel'):
             if not active:

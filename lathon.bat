@@ -1,5 +1,5 @@
 @echo off
-set VERSION=v1.0.1
+set VERSION=v1.0.2
 set RELEASE_NAME=Lathon_%VERSION%
 
 echo [1/4] Cleaning...

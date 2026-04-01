@@ -6,30 +6,50 @@ import queue
 from threading import Thread
 from pathlib import Path
 
+# Garante que o caminho base seja o diretório físico correto,
 APP_DIR = Path.cwd()
 LATEX_NAMES = ["pdflatex", "pdflatex.exe"]
 
 
 def find_latex_compiler():
-    """Encontra o compilador LaTeX, priorizando versão portátil."""
+    """
+    Busca o executável do compilador priorizando a estrutura de pastas do MiKTeX Portátil.
+    Gera scripts dinâmicos (.bat) e intercepta os logs do terminal para exibir o progresso.
+    """
     possible_paths = [
         APP_DIR / "miktex" / "texmfs" / "install" / "miktex" / "bin" / "x64",
         APP_DIR / "miktex" / "texmfs" / "install" / "miktex" / "bin"
     ]
+
     for path in possible_paths:
         for name in LATEX_NAMES:
             compiler_path = path / name
             if compiler_path.exists():
                 return str(compiler_path)
 
+    # Fallback: Tenta encontrar o compilador nas variáveis de ambiente do SO
     for name in LATEX_NAMES:
         path = shutil.which(name)
         if path:
             return path
+
     return None
 
 
+def _read_output(out, q):
+    """Função auxiliar para ler o terminal sem travar o Python (evita Blocking I/O)."""
+    for line in iter(out.readline, ''):
+        q.put(line)
+    out.close()
+
+
 class CompilerThread(Thread):
+    """
+    Executa a compilação de forma assíncrona.
+    Comunica-se com a thread principal da UI através de uma Queue (Fila),
+    enviando mensagens de status e pacotes sendo baixados.
+    """
+
     def __init__(self, project_dir: Path, tex_file_name: str, compiler_path: str, q: queue.Queue):
         super().__init__()
         self.project_dir = project_dir
@@ -40,7 +60,7 @@ class CompilerThread(Thread):
         self.is_cancelled = False
 
     def cancel(self):
-        """Cancela a thread e mata o processo do compilador no Windows."""
+        """Interrompe a thread e força a finalização (kill) do processo do compilador no Windows."""
         self.is_cancelled = True
         if self.process:
             try:
@@ -53,13 +73,16 @@ class CompilerThread(Thread):
                     pass
 
     def log(self, message):
+        """Envia mensagens de log para o painel do terminal na UI via Queue."""
         if not self.is_cancelled:
             self.queue.put(message)
 
     def run(self):
+        """Monta o script de execução e inicia o processo de compilação encadeada."""
         bib_files_exist = any(self.project_dir.glob("*.bib"))
 
-        # ADICIONADO: -synctex=1 para gerar o mapa de sincronização
+        # O parâmetro -synctex=1 é mandatório para gerar o arquivo .synctex.gz,
+        # que permite a navegação bidirecional (PDF <-> Código) no editor.
         if bib_files_exist:
             bat_content = f'''
                 @echo off
@@ -98,6 +121,7 @@ class CompilerThread(Thread):
         startupinfo = None
         creationflags = 0
 
+        # Oculta a janela preta do CMD no Windows durante a compilação
         if sys.platform == "win32":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -118,39 +142,46 @@ class CompilerThread(Thread):
                 bufsize=1
             )
 
+            # Usa uma thread auxiliar apenas para ler as linhas sem travar
+            local_queue = queue.Queue()
+            reader_thread = Thread(target=_read_output, args=(self.process.stdout, local_queue))
+            reader_thread.daemon = True
+            reader_thread.start()
+
             download_message_sent = False
 
-            for line in iter(self.process.stdout.readline, ''):
+            while True:
                 if self.is_cancelled:
                     break
 
-                if not line: break
-                stripped = line.strip()
-                if not stripped: continue
+                try:
+                    # Espera no máximo 2 segundos por uma nova linha
+                    line = local_queue.get(timeout=2.0)
 
-                if stripped.startswith('"___STATUS'):
-                    parts = stripped.replace('"', '').split(':')
-                    if len(parts) >= 4:
-                        msg = f">> [{parts[1]}/{parts[2]}] {parts[3]}"
-                        self.log(msg)
-                    continue
+                    if not line:
+                        if not reader_thread.is_alive():
+                            break
+                        continue
 
-                if stripped.startswith('!'):
-                    self.log(f"ERRO: {stripped[1:].strip()}")
-                    continue
+                    stripped = line.strip()
+                    if not stripped: continue
 
-                if "Fatal error" in stripped:
-                    self.log(f"ERRO FATAL: {stripped}")
-                    continue
+                    # INTERCEPTA APENAS O STATUS DE PROGRESSO
+                    if stripped.startswith('"___STATUS'):
+                        parts = stripped.replace('"', '').split(':')
+                        if len(parts) >= 4:
+                            msg = f">> [{parts[1]}/{parts[2]}] {parts[3]}"
+                            self.log(msg)
+                        continue
 
-                if "installing package" in stripped.lower() and not download_message_sent:
-                    if not self.is_cancelled:
-                        self.queue.put(("downloading_package", True))
-                    self.log(">> Baixando pacote necessário (isso pode demorar)...")
-                    download_message_sent = True
-                    continue
+                except queue.Empty:
+                    if self.process.poll() is None:
+                        if not download_message_sent and not self.is_cancelled:
+                            self.queue.put(("downloading_package", True))
+                            download_message_sent = True
+                    else:
+                        break  # Processo já encerrou
 
-            self.process.stdout.close()
             self.process.wait()
 
         except Exception as e:
@@ -160,6 +191,7 @@ class CompilerThread(Thread):
             return
 
         if not self.is_cancelled:
+            # Validação simples de integridade do PDF gerado
             pdf_path = self.project_dir / Path(self.tex_file_name_no_ext).with_suffix(".pdf")
             success = pdf_path.exists() and pdf_path.stat().st_size > 0
             self.queue.put(("finished", success))

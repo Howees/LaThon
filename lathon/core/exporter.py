@@ -9,6 +9,7 @@ class ProjectExporter:
 
     @staticmethod
     def export_pdf(project_dir, active_file):
+        """Exporta PDF para uma pasta selecionada"""
         if not project_dir: return
         main_file = next((f for f in list(project_dir.rglob("*.tex")) if f.name.lower() in ("main.tex", "root.tex")),
                          active_file)
@@ -30,6 +31,7 @@ class ProjectExporter:
 
     @staticmethod
     def export_zip(project_dir):
+        """Exporta ZIP do projeto para uma pasta selecionada"""
         if not project_dir: return
         dest = filedialog.asksaveasfilename(title="Exportar ZIP", initialfile=f"{project_dir.name}.zip",
                                             defaultextension=".zip", filetypes=[("ZIP", "*.zip")])

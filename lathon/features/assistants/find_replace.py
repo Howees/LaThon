@@ -1,38 +1,50 @@
-import tkinter as tk
 import customtkinter as ctk
 
 # --- DESIGN SYSTEM ---
 from lathon.ui.design import Colors
 
+
 class FindReplaceHandler:
+    """Gerencia a ferramenta de busca integrada ao Textbox nativo do Editor."""
+
     def __init__(self, app, editor, find_frame):
         self.app = app
         self.editor = editor
         self.find_frame = find_frame
+
+        # Armazena pares de coordenadas (início/fim) de cada match válido
         self.matches = []
         self.current_match_idx = -1
         self.replace_popup = None
 
-        self.find_entry = ctk.CTkEntry(self.find_frame, placeholder_text="Localizar...", width=150, height=28, border_width=0, fg_color="transparent")
+        # ==========================================
+        # CONSTRUÇÃO DO PAINEL PRINCIPAL (Localizar)
+        # ==========================================
+        self.find_entry = ctk.CTkEntry(self.find_frame, placeholder_text="Localizar...", width=150, height=28,
+                                       border_width=0, fg_color="transparent")
         self.find_entry.pack(side="left", padx=(10, 5), pady=4)
 
         self.find_counter = ctk.CTkLabel(self.find_frame, text="0/0", text_color=Colors.TEXT_MUTED, width=40)
         self.find_counter.pack(side="left", padx=5)
 
         self.btn_prev = ctk.CTkButton(self.find_frame, text="↑", width=28, height=28, fg_color="transparent",
-                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL, command=self.prev_match)
+                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL,
+                                      command=self.prev_match)
         self.btn_prev.pack(side="left", padx=1)
 
         self.btn_next = ctk.CTkButton(self.find_frame, text="↓", width=28, height=28, fg_color="transparent",
-                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL, command=self.next_match)
+                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL,
+                                      command=self.next_match)
         self.btn_next.pack(side="left", padx=1)
 
         self.btn_more = ctk.CTkButton(self.find_frame, text="⋮", width=28, height=28, fg_color="transparent",
-                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL, command=self.show_replace_popup)
+                                      hover_color=Colors.BTN_HOVER, text_color=Colors.TEXT_NORMAL,
+                                      command=self.show_replace_popup)
         self.btn_more.pack(side="left", padx=1)
 
         self.btn_close = ctk.CTkButton(self.find_frame, text="✕", width=28, height=28, fg_color="transparent",
-                                       hover_color=Colors.BTN_DANGER, text_color=Colors.TEXT_NORMAL, command=self.hide_dialog)
+                                       hover_color=Colors.BTN_DANGER, text_color=Colors.TEXT_NORMAL,
+                                       command=self.hide_dialog)
         self.btn_close.pack(side="left", padx=(1, 5))
 
         self.find_entry.bind("<KeyRelease>", self.update_matches)
@@ -41,9 +53,12 @@ class FindReplaceHandler:
         self.editor.bind("<<EditorTextChanged>>", self._on_editor_changed, add="+")
 
     def _on_editor_changed(self, event=None):
-        if self.find_frame.winfo_ismapped(): self.update_matches()
+        """Recalcula a busca instantaneamente caso o usuário apague ou adicione texto."""
+        if self.find_frame.winfo_ismapped():
+            self.update_matches()
 
     def show_dialog(self, event=None):
+        """Exibe o painel flutuante no canto superior direito da janela central."""
         self.find_frame.place(relx=0.98, rely=0.02, anchor="ne")
         self.find_frame.lift()
         self.find_entry.focus_set()
@@ -61,6 +76,7 @@ class FindReplaceHandler:
         return "break"
 
     def update_matches(self, event=None):
+        """Motor de Varredura. Atualiza as marcações coloridas em background."""
         query = self.find_entry.get()
         self.editor.tag_remove("find_highlight_all", "1.0", "end")
         self.editor.tag_remove("find_highlight_current", "1.0", "end")
@@ -73,8 +89,10 @@ class FindReplaceHandler:
 
         start_pos = "1.0"
         while True:
+            # Tkinter Textbox search embutido (bastante eficiente)
             pos = self.editor._textbox.search(query, start_pos, stopindex="end", nocase=True)
             if not pos: break
+
             end_pos = f"{pos} + {len(query)} chars"
             self.matches.append((pos, end_pos))
             self.editor.tag_add("find_highlight_all", pos, end_pos)
@@ -87,6 +105,7 @@ class FindReplaceHandler:
             self.find_counter.configure(text="0/0")
 
     def _highlight_current(self):
+        """Foca visualmente no match atual e move o scroll para exibi-lo."""
         self.editor.tag_remove("find_highlight_current", "1.0", "end")
         if not self.matches or self.current_match_idx < 0 or self.current_match_idx >= len(self.matches): return
 
@@ -105,7 +124,11 @@ class FindReplaceHandler:
         self.current_match_idx = (self.current_match_idx - 1) % len(self.matches)
         self._highlight_current()
 
+    # ==========================================
+    # PAINEL SECUNDÁRIO (Substituir)
+    # ==========================================
     def show_replace_popup(self):
+        """Abre uma mini-janela embutida (Toplevel) para a ação de substituição."""
         if self.replace_popup and self.replace_popup.winfo_exists():
             self._close_replace_popup()
             return
@@ -126,21 +149,29 @@ class FindReplaceHandler:
         btn_rep_all = ctk.CTkButton(border, text="Substituir Tudo", width=100, height=28, command=self.replace_all)
         btn_rep_all.pack(side="left", padx=(0, 5), pady=5)
 
+        # Ancoragem dinâmica imediatamente abaixo do botão original de "Mais Opções"
         x = self.btn_more.winfo_rootx() - 100
         y = self.btn_more.winfo_rooty() + self.btn_more.winfo_height() + 2
         self.replace_popup.geometry(f"+{x}+{y}")
         self.replace_entry.focus_set()
 
     def replace_all(self):
+        """Aplica a substituição textual globalmente. Agrupa no stack de Undo."""
         if not hasattr(self, 'replace_entry'): return
+
         replace_text = self.replace_entry.get()
         query = self.find_entry.get()
         if not query or not self.matches: return
 
+        # Adiciona um separador no log nativo do undo (Ctrl+Z)
+        # Permite ao usuário reverter 500 substituições num único clique
         self.editor._textbox.edit_separator()
+
+        # A iteração reversa evita que as deleções interfiram na indexação posterior das variáveis
         for pos, end_pos in reversed(self.matches):
             self.editor.delete(pos, end_pos)
             self.editor.insert(pos, replace_text)
+
         self.editor._textbox.edit_separator()
 
         self.app.log_line(f"Substituídos {len(self.matches)} itens.")

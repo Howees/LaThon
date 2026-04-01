@@ -1,3 +1,8 @@
+"""
+preview_panel.py
+
+"""
+
 from pathlib import Path
 import tkinter as tk
 import customtkinter as ctk
@@ -15,7 +20,11 @@ except ImportError:
 
 
 class PreviewPanel(ctk.CTkFrame):
-    """Visualizador PDF Interativo com Zoom, Seleção de Texto e SyncTeX Nativo."""
+    """
+    Gerencia o visualizador interno de PDF e Imagens do LaThon.
+    Suporta zoom interativo, rolagem dinâmica (panning), extração/cópia de texto
+    e navegação bidirecional (SyncTeX) entre o PDF gerado e o código-fonte LaTeX.
+    """
 
     def __init__(self, master, app, **kwargs):
         super().__init__(master, fg_color=Colors.BG_SIDEBAR, corner_radius=0, **kwargs)
@@ -34,8 +43,11 @@ class PreviewPanel(ctk.CTkFrame):
         nav_frame = ctk.CTkFrame(self.toolbar, fg_color="transparent")
         nav_frame.pack(side="left", padx=10, pady=5)
 
-        btn_conf = {"width": 24, "height": 24, "fg_color": "transparent", "text_color": Colors.TEXT_NORMAL,
-                    "hover_color": Colors.BTN_HOVER, "font": Fonts.UI_BOLD}
+        btn_conf = {
+            "width": 24, "height": 24, "fg_color": "transparent",
+            "text_color": Colors.TEXT_NORMAL, "hover_color": Colors.BTN_HOVER,
+            "font": Fonts.UI_BOLD
+        }
 
         self.btn_prev = ctk.CTkButton(nav_frame, text="ʌ", command=self.prev_page, **btn_conf)
         self.btn_prev.pack(side="left")
@@ -59,27 +71,34 @@ class PreviewPanel(ctk.CTkFrame):
         self.btn_zoom_in.pack(side="left")
 
         # ==========================================
-        # 2. ÁREA DE EXIBIÇÃO E SCROLLBARS
+        # 2. ÁREA DE EXIBIÇÃO E SCROLLBARS (CANVAS)
         # ==========================================
         bg_color = Colors.BG_SIDEBAR[1] if ctk.get_appearance_mode() == "Dark" else Colors.BG_SIDEBAR[0]
+
         self.canvas = tk.Canvas(self, bg=bg_color, highlightthickness=0)
         self.canvas.grid(row=1, column=0, sticky="nsew")
 
         self.v_scrollbar = ctk.CTkScrollbar(self, orientation="vertical", command=self.canvas.yview)
         self.v_scrollbar.grid(row=1, column=1, sticky="ns")
+
         self.h_scrollbar = ctk.CTkScrollbar(self, orientation="horizontal", command=self.canvas.xview)
         self.h_scrollbar.grid(row=2, column=0, sticky="ew")
+
         self.canvas.configure(yscrollcommand=self._on_v_scroll_update, xscrollcommand=self.h_scrollbar.set)
 
-        self.message_id = self.canvas.create_text(150, 50, text="Abra um projeto para ver o preview.",
-                                                  fill=Colors.TEXT_MUTED[0], font=("Segoe UI", 12))
+        self.message_id = self.canvas.create_text(
+            150, 50, text="Abra um projeto para ver o preview.",
+            fill=Colors.TEXT_MUTED[0], font=("Segoe UI", 12)
+        )
 
-        # --- ESTADO INTERNO ---
+        # ==========================================
+        # ESTADO INTERNO DO VISUALIZADOR
+        # ==========================================
         self.current_pdf_path = None
-        self.raw_pil_pages = []
-        self.tk_images = []
-        self.page_metadata = []
-        self.text_cache = {}
+        self.raw_pil_pages = []  # Armazena as páginas em alta resolução
+        self.tk_images = []  # Cache de imagens renderizadas no Canvas
+        self.page_metadata = []  # Metadados de coordenadas e escala para cada página (crítico para o SyncTeX)
+        self.text_cache = {}  # Cache de palavras extraídas pelo PyMuPDF
         self._resize_timer = None
 
         self.zoom_level = 1.0
@@ -88,7 +107,9 @@ class PreviewPanel(ctk.CTkFrame):
         self.sel_start_word = None
         self.selected_text = ""
 
-        # --- EVENTOS ---
+        # ==========================================
+        # MAPEAMENTO DE EVENTOS
+        # ==========================================
         self.bind("<Configure>", self.on_resize)
         self.canvas.bind("<MouseWheel>", self._on_mousewheel)
         self.canvas.bind("<Shift-MouseWheel>", self._on_shift_mousewheel)
@@ -110,7 +131,7 @@ class PreviewPanel(ctk.CTkFrame):
         self.canvas.bind("<ButtonRelease-2>", self._on_pan_release)
 
     def _set_appearance_mode(self, mode_string):
-        """Ouve a mudança de tema do CustomTkinter e atualiza o Canvas na hora."""
+        """Atualiza a cor de fundo do Canvas nativo ao alternar entre Light/Dark mode."""
         super()._set_appearance_mode(mode_string)
         if hasattr(self, 'canvas'):
             is_dark = mode_string.lower() == "dark"
@@ -118,6 +139,7 @@ class PreviewPanel(ctk.CTkFrame):
             self.canvas.configure(bg=new_bg)
 
     def show_image_in_editor_panel(self, image_path: Path):
+        """Renderiza uma imagem rasterizada (PNG, JPG) diretamente no visualizador central."""
         if not PYMUPDF_AVAILABLE: return
         self.app._switch_center_view('image')
         try:
@@ -127,6 +149,7 @@ class PreviewPanel(ctk.CTkFrame):
             pass
 
     def show_pdf_in_editor_panel(self, pdf_path: Path):
+        """Extrai e renderiza a primeira página de um PDF avulso no visualizador central."""
         if not PYMUPDF_AVAILABLE: return
         self.app._switch_center_view('image')
         try:
@@ -140,6 +163,7 @@ class PreviewPanel(ctk.CTkFrame):
             pass
 
     def _display_image_centered(self, pil_image, container, label):
+        """Utilitário para ajustar a escala e centralizar imagens no container."""
         container.update_idletasks()
         w = container.winfo_width()
         scale = (w if w > 1 else 400) / pil_image.width
@@ -148,6 +172,7 @@ class PreviewPanel(ctk.CTkFrame):
         label.configure(image=img, text="")
 
     def show_pdf_preview(self, pdf_path: Path):
+        """Processa um documento PDF completo e carrega suas páginas para exibição."""
         if not PYMUPDF_AVAILABLE: return
         self.current_pdf_path = pdf_path
         self.text_cache = {}
@@ -161,6 +186,7 @@ class PreviewPanel(ctk.CTkFrame):
                 pix = page.get_pixmap(dpi=150)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
+                # Extrai as coordenadas de todas as palavras para permitir seleção e cópia
                 self.text_cache[page_index + 1] = page.get_text("words")
 
                 self.raw_pil_pages.append({
@@ -170,12 +196,14 @@ class PreviewPanel(ctk.CTkFrame):
                     "page_num": page_index + 1
                 })
             doc.close()
+
             self._apply_resize()
             self._update_page_counter()
         except Exception as e:
             self.app.log_line(f"Erro preview: {e}")
 
     def clear_image(self):
+        """Reseta o visualizador ao fechar projetos."""
         self.canvas.delete("all")
         self.raw_pil_pages = []
         self.tk_images = []
@@ -183,46 +211,46 @@ class PreviewPanel(ctk.CTkFrame):
         self.text_cache = {}
         self.current_pdf_path = None
         self.page_label.configure(text="0 / 0")
-        self.message_id = self.canvas.create_text(150, 50, text="Nenhum projeto aberto.", fill=Colors.TEXT_MUTED[0],
-                                                  font=("Segoe UI", 12))
+        self.message_id = self.canvas.create_text(
+            150, 50, text="Nenhum projeto aberto.",
+            fill=Colors.TEXT_MUTED[0], font=("Segoe UI", 12)
+        )
 
+    # ==========================================
+    # LÓGICA DE NAVEGAÇÃO, SCROLL E ZOOM
+    # ==========================================
     def _on_ctrl_mousewheel(self, event):
-        # Define o passo do zoom baseado na direção do scroll (+ ou -)
         step = 0.05 if event.delta > 0 else -0.05
         self.adjust_zoom(step)
 
     def zoom_in(self):
-        # Atalho para botões da interface (passo maior)
         self.adjust_zoom(0.2)
 
     def zoom_out(self):
-        # Atalho para botões da interface (passo maior)
         self.adjust_zoom(-0.2)
 
     def adjust_zoom(self, step):
-        # Desliga o ajuste automático de largura
         self.fit_to_width = False
-        # Calcula o novo zoom prensando o valor entre 0.6 (60%) e 2.0 (200%)
         self.zoom_level = max(0.6, min(2.0, self.zoom_level + step))
-        # Aplica a renderização visual
         self._apply_resize()
 
     def on_resize(self, event):
+        """Impede recalculo excessivo agrupando os eventos de resize da janela."""
         if not self.raw_pil_pages or not self.fit_to_width: return
         if self._resize_timer: self.app.after_cancel(self._resize_timer)
         self._resize_timer = self.app.after(200, self._apply_resize)
 
     def _apply_resize(self):
+        """Renderiza as páginas no Canvas aplicando a escala correta de zoom ou de largura da janela."""
         if not self.raw_pil_pages: return
         self.canvas.delete("all")
         self.tk_images = []
         self.page_metadata = []
 
-        # 1. Pega as dimensões exatas da área disponível para o Canvas
         canvas_w = self.winfo_width()
         canvas_h = self.winfo_height()
 
-        # Prevenção para quando a tela estiver inicializando
+        # Fallback de geometria durante a renderização inicial
         if canvas_w <= 20: canvas_w = 500
         if canvas_h <= 20: canvas_h = 700
 
@@ -239,14 +267,11 @@ class PreviewPanel(ctk.CTkFrame):
         for data in self.raw_pil_pages:
             orig_img = data["image"]
 
-            # 2. Calcula a Escala Base (Fit Page - encaixa a página na tela com 40px de folga)
             scale_w = (canvas_w - 40) / orig_img.width
             scale_h = (canvas_h - 40) / orig_img.height
             base_scale = min(scale_w, scale_h)
 
-            # 3. A escala verdadeira é a Escala Base vezes o Zoom do Usuário
             final_scale = base_scale * self.zoom_level
-
             new_width = int(orig_img.width * final_scale)
             new_height = int(orig_img.height * final_scale)
 
@@ -260,7 +285,7 @@ class PreviewPanel(ctk.CTkFrame):
             x_offset = max(0, (canvas_w - new_width) // 2)
             self.canvas.create_image(x_offset, y_offset, image=tk_img, anchor="nw")
 
-            # A matemática do SyncTeX continua inviolável!
+            # Salva fatores matemáticos para o sistema de coordenadas do SyncTeX e da seleção de texto
             escala_para_pdf = data["pdf_width"] / new_width
             self.page_metadata.append({
                 "page_num": data["page_num"],
@@ -276,9 +301,10 @@ class PreviewPanel(ctk.CTkFrame):
         self._update_page_counter()
 
     # ==========================================
-    # INTERATIVIDADE DO MOUSE & PANNING
+    # EVENTOS DE MOUSE, SELEÇÃO E NAVEGAÇÃO
     # ==========================================
     def _on_mouse_move(self, event):
+        """Modifica o cursor para 'texto' quando passa sobre palavras do PDF."""
         if not self.page_metadata: return
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
@@ -299,6 +325,7 @@ class PreviewPanel(ctk.CTkFrame):
         self.canvas.configure(cursor="xterm" if over_text else "")
 
     def _on_pan_start(self, event):
+        """Inicia a movimentação livre do PDF clicando e segurando o botão do meio/scroll."""
         self.canvas.configure(cursor="fleur")
         self.canvas.scan_mark(event.x, event.y)
 
@@ -320,6 +347,7 @@ class PreviewPanel(ctk.CTkFrame):
         self._update_page_counter()
 
     def _update_page_counter(self):
+        """Calcula a página atualmente visível com base na posição da scrollbar."""
         if not self.page_metadata: return
         top_y = self.canvas.canvasy(0)
         center_y = top_y + (self.canvas.winfo_height() / 3)
@@ -354,10 +382,10 @@ class PreviewPanel(ctk.CTkFrame):
         self.canvas.yview_moveto(max(0.0, min(1.0, fraction)))
 
     # ==========================================
-    # SELEÇÃO DE TEXTO MANUAL (CRIAÇÃO DO FUNDO AZUL)
+    # CÓPIA E SELEÇÃO DE TEXTO DO PDF
     # ==========================================
     def _get_word_index_at_pos(self, canvas_x, canvas_y, max_dist=15):
-        """Descobre o índice da palavra exata ou mais próxima na coordenada do Canvas."""
+        """Converte as coordenadas visuais da tela para buscar palavras embutidas no arquivo PDF."""
         for meta in self.page_metadata:
             if meta["y_start"] <= canvas_y <= meta["y_end"]:
                 pdf_x = (canvas_x - meta["x_start"]) * meta["scale_factor"]
@@ -366,10 +394,12 @@ class PreviewPanel(ctk.CTkFrame):
                 words = self.text_cache.get(meta["page_num"], [])
                 if not words: return meta, None
 
+                # Busca exata
                 for idx, w in enumerate(words):
                     if w[0] - 2 <= pdf_x <= w[2] + 2 and w[1] - 2 <= pdf_y <= w[3] + 2:
                         return meta, idx
 
+                # Busca por aproximação (fallback para precisão do mouse)
                 min_dist = float('inf')
                 best_idx = None
                 for idx, w in enumerate(words):
@@ -385,7 +415,7 @@ class PreviewPanel(ctk.CTkFrame):
         return None, None
 
     def _highlight_and_extract(self, meta, start_idx, end_idx):
-        """Pinta as palavras de azul e retorna o texto extraído cru."""
+        """Desenha a marcação azul de seleção e agrupa os fragmentos de texto correspondentes."""
         self.canvas.delete("selection_highlight")
         page_num = meta["page_num"]
         words = self.text_cache.get(page_num, [])
@@ -401,8 +431,10 @@ class PreviewPanel(ctk.CTkFrame):
             y0 = (w[1] / meta["scale_factor"]) + meta["y_start"]
             x1 = (w[2] / meta["scale_factor"]) + meta["x_start"]
             y1 = (w[3] / meta["scale_factor"]) + meta["y_start"]
-            self.canvas.create_rectangle(x0, y0, x1, y1, fill="#aaddff", outline="", tags="selection_highlight",
-                                         stipple="gray50")
+            self.canvas.create_rectangle(
+                x0, y0, x1, y1, fill="#aaddff", outline="",
+                tags="selection_highlight", stipple="gray50"
+            )
 
             text, block_no, line_no = w[4], w[5], w[6]
             if i > i1:
@@ -461,11 +493,13 @@ class PreviewPanel(ctk.CTkFrame):
             self.app.log_line(f"[Aviso] Texto copiado ({len(self.selected_text)} caracteres).")
 
     # ==========================================
-    # SYNCTEX: INVERSE SEARCH (DUPLO CLIQUE -> CÓDIGO)
+    # SYNCTEX: BUSCA INVERSA (PDF -> CÓDIGO FONTE)
     # ==========================================
     def _on_pdf_double_click(self, event):
-        """Sincronia Estável + Trava de Imagens e Abertura Blindada de Arquivos."""
-
+        """
+        Gatilho do SyncTeX. Recebe o clique duplo no PDF, identifica as coordenadas
+        e se comunica com o compilador externo para rastrear a respectiva linha de código.
+        """
         import subprocess, re, os, unicodedata
         from pathlib import Path
 
@@ -475,9 +509,7 @@ class PreviewPanel(ctk.CTkFrame):
         canvas_x = self.canvas.canvasx(event.x)
         canvas_y = self.canvas.canvasy(event.y)
 
-        # ========================================================
-        # 0. IDENTIFICA PÁGINA
-        # ========================================================
+        # Identificação da página atual
         target_meta = None
         for meta in self.page_metadata:
             if meta["y_start"] <= canvas_y <= meta["y_end"]:
@@ -486,11 +518,8 @@ class PreviewPanel(ctk.CTkFrame):
         if not target_meta:
             return
 
-        # ========================================================
-        # 1. DETECÇÃO E COSTURA DA PALAVRA
-        # ========================================================
+        # Busca por palavras renderizadas no local exato do clique
         meta, idx = self._get_word_index_at_pos(canvas_x, canvas_y, max_dist=15)
-
         clicked_on_text = (meta is not None and idx is not None)
 
         target_word_clean = ""
@@ -500,11 +529,10 @@ class PreviewPanel(ctk.CTkFrame):
         if clicked_on_text:
             words_on_page = self.text_cache.get(meta["page_num"], [])
 
-            # --- MÁGICA 1: EXPANSÃO CALIBRADA ---
+            # Une caracteres e fragmentos adjacentes que foram separados incorretamente durante a geração do PDF
             start_idx = idx
             end_idx = idx
 
-            # Expande para trás
             while start_idx > 0:
                 prev_w = words_on_page[start_idx - 1]
                 curr_w = words_on_page[start_idx]
@@ -519,7 +547,6 @@ class PreviewPanel(ctk.CTkFrame):
                     continue
                 break
 
-            # Expande para frente
             while end_idx < len(words_on_page) - 1:
                 curr_w = words_on_page[end_idx]
                 next_w = words_on_page[end_idx + 1]
@@ -534,12 +561,9 @@ class PreviewPanel(ctk.CTkFrame):
                     continue
                 break
 
-            # Grifa a palavra COMPLETA unida na tela
             self.selected_text = self._highlight_and_extract(meta, start_idx, end_idx)
 
-            # ========================================================
-            # 1.5 CONTEXTO DO PDF
-            # ========================================================
+            # Normalização de texto para uso posterior na busca contextual (Fallback)
             def clean_word(w):
                 if not w: return ""
                 s = ''.join(c for c in unicodedata.normalize('NFD', w) if unicodedata.category(c) != 'Mn')
@@ -571,9 +595,7 @@ class PreviewPanel(ctk.CTkFrame):
 
         is_figure_mode = not clicked_on_text
 
-        # ========================================================
-        # 2. COORDENADAS E SYNCTEX
-        # ========================================================
+        # Conversão de escala de tela (Pixels) para Escala do Editor (Pontos)
         pdf_x = (canvas_x - target_meta["x_start"]) * target_meta["scale_factor"]
         pdf_y = (canvas_y - target_meta["y_start"]) * target_meta["scale_factor"]
 
@@ -584,6 +606,7 @@ class PreviewPanel(ctk.CTkFrame):
         page_num = target_meta["page_num"]
 
         try:
+            # Comando de comunicação com a engine SyncTeX externa
             synctex_cmd = 'synctex'
             if hasattr(self.app, 'latex_compiler') and self.app.latex_compiler:
                 exe_path = Path(self.app.latex_compiler).parent / "synctex.exe"
@@ -591,10 +614,8 @@ class PreviewPanel(ctk.CTkFrame):
                     synctex_cmd = str(exe_path)
 
             cmd = [synctex_cmd, 'edit', '-o', f"{page_num}:{pdf_x}:{pdf_y}:{self.current_pdf_path}"]
-
             flags = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
 
-            # Adicionado encoding para tentar salvar os acentos do SyncTeX
             result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='ignore',
                                     creationflags=flags)
 
@@ -608,9 +629,7 @@ class PreviewPanel(ctk.CTkFrame):
 
             line_num, input_file = valid_results[0]
 
-            # ========================================================
-            # ABERTURA DIRETA DE ARQUIVOS (.tex) - BLINDADA CONTRA ACENTOS
-            # ========================================================
+            # Navegação segura contra pastas com nomes especiais ou acentos não suportados pelo CLI
             def open_sync_file(file_path_str):
                 if not file_path_str: return False
                 p = Path(file_path_str)
@@ -618,31 +637,24 @@ class PreviewPanel(ctk.CTkFrame):
                 if not p.is_absolute():
                     p = self.app.project_dir / p
 
-                # Se o arquivo não existir de cara, a culpa é dos acentos na pasta "Pré-textual"!
                 if not p.exists():
-                    # Pega só o nome do arquivo (ex: FolhadeAprovação) e limpa tudo que não é letra
                     raw_stem = Path(file_path_str).stem
                     clean_stem = re.sub(r'[^a-zA-Z0-9]', '', raw_stem).lower()
 
                     if clean_stem:
-                        # Caça no projeto inteiro o arquivo com esse nome limpo
                         for f in self.app.project_dir.rglob("*.tex"):
                             f_clean = re.sub(r'[^a-zA-Z0-9]', '', f.stem).lower()
                             if clean_stem in f_clean or f_clean in clean_stem:
                                 p = f
                                 break
 
-                # Abre apenas se for um arquivo .tex válido
                 if p.exists() and p.suffix.lower() == '.tex':
                     if not self.app.active_file or p.resolve() != self.app.active_file.resolve():
                         self.app._open_file(p)
                     return True
                 return False
 
-            # Tenta abrir o arquivo!
             open_sync_file(input_file)
-
-            # Recalcula as linhas DEPOIS de o arquivo ser aberto, pois o tamanho mudou
             total_lines = int(self.app.editor.index('end-1c').split('.')[0])
 
             if line_num >= total_lines - 1 and len(valid_results) > 1:
@@ -653,28 +665,20 @@ class PreviewPanel(ctk.CTkFrame):
             self.app._switch_center_view('editor')
             self.app.editor.tag_remove("sel", "1.0", "end")
 
-            # ========================================================
-            # NOVA TRAVA: VERIFICA DIRETAMENTE A LINHA DO SYNCTEX
-            # ========================================================
-            sync_line_text = self.app.editor.get(f"{line_num}.0", f"{line_num}.end").lower()
-            if any(tag in sync_line_text for tag in
-                   ["\\includegraphics", "\\begin{figure}", "\\caption", "\\begin{table}"]):
-                clicked_on_text = False
-                is_figure_mode = True
-                self.canvas.delete("selection_highlight")
-                self.selected_text = ""
+            # Avaliação de intenção de clique: Verifica se o usuário de fato queria focar na imagem
+            # ou se clicou em uma legenda próxima.
+            if not clicked_on_text:
+                sync_line_text = self.app.editor.get(f"{line_num}.0", f"{line_num}.end").lower()
+                if any(tag in sync_line_text for tag in
+                       ["\\includegraphics", "\\begin{figure}", "\\caption", "\\begin{table}"]):
+                    is_figure_mode = True
 
-            # ========================================================
-            # 3. FALLBACK (TEXTO OU FIGURA)
-            # ========================================================
+            # Recorte local para aumentar a performance da busca de equivalência (Fallback)
             start_search_line = max(1, line_num - 300)
             end_search_line = min(total_lines, line_num + 300)
-
             chunk_text = self.app.editor.get(f"{start_search_line}.0", f"{end_search_line}.end")
 
-            # ========================================================
-            # 🖼️ MODO FIGURA
-            # ========================================================
+            # Lógica otimizada para identificar o bloco de código correspondente à figura
             if is_figure_mode:
                 lines = chunk_text.splitlines()
                 best_line = None
@@ -697,11 +701,8 @@ class PreviewPanel(ctk.CTkFrame):
                     self.app.editor.focus_set()
                 return
 
-            # ========================================================
-            # 🔤 MODO TEXTO
-            # ========================================================
+            # Lógica de equivalência para texto. Garante alta precisão ao focar no alvo usando as palavras vizinhas.
             editor_words = []
-
             for m in re.finditer(r'[a-zA-ZÀ-ÿ0-9]+', chunk_text):
                 if m.start() > 0 and chunk_text[m.start() - 1] == '\\':
                     continue

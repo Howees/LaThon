@@ -1,8 +1,9 @@
 class TextFormatter:
-    """Gerencia a aplicação de tags de formatação e manipulação de texto no editor LaTeX."""
+    """Provém funções utilitárias diretas aos botões de topbar da janela Editor Panel."""
 
     @staticmethod
     def apply_format(editor, style):
+        """Envelopa o texto selecionado dentro da tag de estilo indicada (Ex. \textbf{texto})."""
         try:
             sel = editor.tag_ranges("sel")
             if not sel: return
@@ -15,7 +16,6 @@ class TextFormatter:
             editor.delete(sel[0], sel[1])
             editor.insert(sel[0], f"{cmd}{{{txt}}}")
 
-            # Avisa o editor para atualizar a sintaxe e as linhas
             if hasattr(editor, '_on_text_changed'):
                 editor._on_text_changed()
         except:
@@ -23,22 +23,24 @@ class TextFormatter:
 
     @staticmethod
     def toggle_comment(editor):
-        """Comenta ou descomenta a(s) linha(s) selecionada(s) com '%'."""
+        """Comenta ou Descomenta linhas injetando/deletando do bloco as tags % de comentário global LaTeX."""
         try:
             sel = editor.tag_ranges("sel")
             if not sel:
-                # Nenhuma seleção: comenta/descomenta a linha atual onde o cursor está
+                # Comentário de Linha Única sem marcação via arraste
                 idx = editor.index("insert")
                 line = idx.split(".")[0]
                 content = editor.get(f"{line}.0", f"{line}.end")
+
                 if content.startswith("%"):
                     editor.delete(f"{line}.0", f"{line}.1")
                 else:
                     editor.insert(f"{line}.0", "%")
             else:
-                # Múltiplas linhas selecionadas
+                # Comentário Multi-linhas em Bloco (Ctrl+/)
                 start_line = int(editor.index(sel[0]).split(".")[0])
                 end_line = int(editor.index(sel[1]).split(".")[0])
+
                 for line in range(start_line, end_line + 1):
                     content = editor.get(f"{line}.0", f"{line}.end")
                     if content.startswith("%"):
@@ -46,7 +48,6 @@ class TextFormatter:
                     else:
                         editor.insert(f"{line}.0", "%")
 
-            # Avisa o editor para atualizar a sintaxe e as linhas
             if hasattr(editor, '_on_text_changed'):
                 editor._on_text_changed()
         except:

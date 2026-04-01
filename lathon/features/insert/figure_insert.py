@@ -6,17 +6,25 @@ from lathon.ui.design import Colors, Fonts
 
 
 class FigureInputDialog(BaseModal):
+    """
+    Componente Modal: Formulário para inserção de imagem.
+    Facilita a inclusão da tag grafica configurando automaticamente a busca pelo arquivo,
+    legenda, rótulo (label) e a escala percentual de ocupação na tela.
+    """
+
     def __init__(self, master_app):
         super().__init__(master_app, "Inserir Figura", 480, 350)
 
-        # --- CABEÇALHO ---
+        # Cabeçalho
         ctk.CTkLabel(self.border_frame, text="Configurar Figura", font=Fonts.UI_TITLE).pack(pady=(20, 15))
 
-        # --- FORMULÁRIO (Usando Grid para alinhamento perfeito) ---
+        # ==========================================
+        # FORMULÁRIO DE CONFIGURAÇÃO (GRID LAYOUT)
+        # ==========================================
         form_frame = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         form_frame.pack(fill="both", expand=True, padx=30)
 
-        # Linha 1: Arquivo
+        # Campo: Seleção de Arquivo
         file_label = ctk.CTkLabel(form_frame, text="Arquivo:", width=80, anchor="e", font=Fonts.UI_BOLD)
         file_label.grid(row=0, column=0, padx=(0, 10), pady=10, sticky="e")
 
@@ -28,32 +36,33 @@ class FigureInputDialog(BaseModal):
                                    command=self._browse_file)
         btn_browse.grid(row=0, column=2, padx=(10, 0), pady=10)
 
-        # Linha 2: Escala
+        # Campo: Escala de Largura (Width)
         size_label = ctk.CTkLabel(form_frame, text="Escala (%):", width=80, anchor="e", font=Fonts.UI_BOLD)
         size_label.grid(row=1, column=0, padx=(0, 10), pady=10, sticky="e")
 
-        # Alinhado à esquerda e mais curto (estiloso)
         self.width_val = ctk.CTkEntry(form_frame, placeholder_text="Porcentagem da tela preenchida")
-        self.width_val.grid(row=1, column=1, sticky="ew", pady=10)  # sticky="w" em vez de "ew" para não esticar
+        self.width_val.grid(row=1, column=1, sticky="ew", pady=10)
 
-        # Linha 3: Legenda
+        # Campo: Legenda (Caption)
         cap_label = ctk.CTkLabel(form_frame, text="Legenda:", width=80, anchor="e", font=Fonts.UI_BOLD)
         cap_label.grid(row=2, column=0, padx=(0, 10), pady=10, sticky="e")
 
         self.caption = ctk.CTkEntry(form_frame, placeholder_text="Ex: Gráfico de dispersão")
         self.caption.grid(row=2, column=1, sticky="ew", pady=10)
 
-        # Linha 4: Label
+        # Campo: Rótulo (Label) para referências cruzadas
         lbl_label = ctk.CTkLabel(form_frame, text="Label (fig:):", width=80, anchor="e", font=Fonts.UI_BOLD)
         lbl_label.grid(row=3, column=0, padx=(0, 10), pady=10, sticky="e")
 
         self.label = ctk.CTkEntry(form_frame, placeholder_text="nome_da_figura")
         self.label.grid(row=3, column=1, sticky="ew", pady=10)
 
-        # Faz a coluna do meio esticar para ocupar o espaço vazio
+        # Permite expansão dinâmica da coluna central
         form_frame.grid_columnconfigure(1, weight=1)
 
-        # --- BOTÕES INFERIORES ---
+        # ==========================================
+        # BOTÕES DE AÇÃO
+        # ==========================================
         btn_f = ctk.CTkFrame(self.border_frame, fg_color="transparent")
         btn_f.pack(fill="x", padx=30, pady=(10, 30))
 
@@ -65,6 +74,7 @@ class FigureInputDialog(BaseModal):
                                                                                       anchor="w", padx=(5, 0))
 
     def _browse_file(self):
+        """Abre o explorador de arquivos e valida se a imagem selecionada pertence ao diretório do projeto."""
         proj_dir = str(self.app.project_dir.resolve()) if self.app.project_dir else ""
         path = filedialog.askopenfilename(title="Selecione a Imagem", initialdir=proj_dir,
                                           filetypes=[("Imagens e PDFs", "*.png *.jpg *.jpeg *.pdf")])
@@ -80,6 +90,7 @@ class FigureInputDialog(BaseModal):
                 messagebox.showerror("Erro", "O arquivo deve estar na mesma unidade de disco do projeto.")
 
     def _on_ok(self):
+        """Finaliza a coleta de dados e os empacota na variável 'result' para o gerenciador pai."""
         if not self.filepath.get().strip():
             messagebox.showwarning("Aviso", "Por favor, selecione um arquivo de imagem.")
             return

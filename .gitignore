@@ -20,7 +20,7 @@
 __pycache__/
 venv/
 .vscode/
-gerar_icones.py
+icones/_gerar_icones.py
 
 # Ignorar pastas de compilação e saída (Build)
 build/
