@@ -21,6 +21,7 @@ __pycache__/
 venv/
 .vscode/
 icones/_gerar_icones.py
+icones/icone.py
 
 # Ignorar pastas de compilação e saída (Build)
 build/
