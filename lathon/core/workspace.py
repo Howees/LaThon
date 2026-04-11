@@ -160,7 +160,7 @@ class WorkspaceManager:
 
     def delete_folder(self, path: Path, tipo_nome: str):
         if messagebox.askyesno(f"Excluir {tipo_nome}",
-                               f"Tem certeza que deseja excluir o {tipo_nome.lower()} '{path.name}' permanentemente?\nISSO NÃO PODE SER DESFEITO!"):
+                               f"Tem certeza que deseja excluir o {tipo_nome.lower()} '{path.name}' permanentemente?"):
             shutil.rmtree(path, ignore_errors=True)
             self.router._render()
 

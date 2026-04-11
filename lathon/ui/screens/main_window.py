@@ -317,7 +317,7 @@ class main_window(ctk.CTk):
     # ==========================================
     def _show_about_dialog(self):
         about_text = (
-            "LaThon LaTeX Editor\nVersão 1.0.2\nCompilador Latex MiKTeX Portable\nDesenvolvido por: Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o LaThon!!!")
+            "LaThon LaTeX Editor\nVersão 1.0.2\nCompilador Latex MiKTeX Portable\nDesenvolvido por Murilo Campos\n\nEm caso de bugs ou sujestões, entre em contato...\nFique a vontade e aproveite o LaThon!!!")
         messagebox.showinfo("Sobre o LaThon", about_text)
 
     def _compile_shortcut(self, event=None):

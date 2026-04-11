@@ -57,7 +57,7 @@ class WelcomeScreen(ctk.CTkFrame):
         header = ctk.CTkFrame(container, fg_color="transparent")
         header.pack(pady=(0, 15))
 
-        big_logo = Icons.get_ctk_image("lathon.ico", size=(80, 80))
+        big_logo = Icons.get_ctk_image("lathon.png", size=(80, 80))
         if big_logo:
             ctk.CTkLabel(header, text="", image=big_logo).pack(pady=(0, 10))
 

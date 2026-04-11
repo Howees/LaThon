@@ -39,7 +39,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='Lathon',
+    name='Lathon_v1.0.2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
